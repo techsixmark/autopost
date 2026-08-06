@@ -547,8 +547,8 @@ function renderTable(jobs) {
     <tr>
       <td style="color:var(--muted);font-size:12px">${i+1}</td>
       <td style="white-space:nowrap">${fmtDateTime(j.created_at)}</td>
-      <td>
-        <div style="font-weight:500;font-size:13px">${esc(j.page_name||'—')}</div>
+      <td style="max-width:180px">
+        <div style="font-weight:500;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px" title="${esc(j.page_name||'—')}">${esc(j.page_name||'—')}</div>
       </td>
       <td><span class="plat-badge ${j.platform}">${platIcon} ${j.platform === "instagram" ? "Instagram" : "Thread"}</span></td>
       <td><span class="chip">${esc(j.topic||"—")}</span></td>

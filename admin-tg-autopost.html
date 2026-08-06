@@ -639,9 +639,9 @@ function renderTable(jobs) {
     <tr>
       <td style="color:var(--muted);font-size:12px">${i+1}</td>
       <td style="white-space:nowrap">${j.input_datetime ? fmtDateTime(j.input_datetime) : '—'}</td>
-      <td>
-        <div style="font-weight:500;font-size:13px">${esc(pg.page_name||'—')}</div>
-        ${pg.tg_link ? `<div style="font-size:11px;color:var(--tg)">${trunc(pg.tg_link,26)}</div>` : ''}
+      <td style="max-width:180px">
+        <div style="font-weight:500;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px" title="${esc(pg.page_name||'—')}">${esc(pg.page_name||'—')}</div>
+        ${pg.tg_link ? `<div style="font-size:11px;color:var(--tg);white-space:nowrap">${trunc(pg.tg_link,26)}</div>` : ''}
       </td>
       <td><span class="chip chip-${pg.tg_type||'channel'}">${pg.tg_type==='group'?'👥 Group':'📢 Channel'}</span></td>
       <td>${j.ai_agent ? '<span class="ai-on">AI ✓</span>' : '<span class="ai-off">—</span>'}</td>
