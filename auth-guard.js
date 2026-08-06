@@ -3,8 +3,8 @@
 // Inject bằng <script src="/auth-guard.js"></script>
 // ============================================================
 
-const SUPABASE_URL  = "https://jhwjnnukzxbfheqatmgw.supabase.co";
-const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impod2pubnVrenhiZmhlcWF0bWd3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5NTI1NjMsImV4cCI6MjA5NjUyODU2M30.8XbBz2iu00-6zAymsAqgcWLkGnX0PTEz5TRRc26Uk9c";
+const SUPABASE_URL  = "https://hpsoflovdjvgfrejovvu.supabase.co";
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhwc29mbG92ZGp2Z2ZyZWpvdnZ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU5OTM5MDAsImV4cCI6MjEwMTU2OTkwMH0.QlK6_7fOC3hLbyOJcOmXh2M4L4mPlU4DiTZrlkZzTQ4";
 
 // ── Role definitions ─────────────────────────────────────────
 const ROLE_LEVEL = { admin: 3, editor: 2, viewer: 1 };
