@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Autopost — Bulk Upload</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+  --bg:#f4f6f9; --surface:#ffffff; --surface2:#f4f6f9; --surface3:#eef1f6;
+  --border:#dde1e7; --border2:#e2e6ec; --text:#1a1d24; --text2:#374151;
+  --muted:#6b7280; --muted2:#9ca3af; --muted3:#c0c7d1;
+  --accent:#7c5cff; --accent-h:#6b4ef0;
+  --danger:#ef4444; --success:#22c55e; --warn:#f59e0b;
+  --fb:#1877f2; --x:#1da1f2; --tg:#2aabee; --ig:#e1306c;
+  --sidebar-w:248px;
+}
+    body { font-family:system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+    .topbar { height:52px; background:var(--surface); border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 24px; gap:12px; position:sticky; top:0; z-index:100; }
+    .logo { font-weight:700; font-size:15px; letter-spacing:-.3px; }
+    .logo span { color:var(--accent); }
+    .sep { flex:1; }
+    .topbar-user { font-size:13px; color:var(--muted); display:flex; align-items:center; gap:10px; }
+    .avatar { width:28px; height:28px; border-radius:50%; background:var(--surface2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; overflow:hidden; font-size:14px; }
+    .avatar img { width:100%; height:100%; object-fit:cover; }
+    .main { padding:28px 32px; max-width:1000px; margin:0 auto; }
+    .page-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:28px; }
+    .page-title { font-size:20px; font-weight:600; }
+    .page-title small { display:block; font-size:13px; font-weight:400; color:var(--muted); margin-top:2px; }
+
+    /* tabs */
+    .tabs { display:flex; gap:0; background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow:hidden; margin-bottom:28px; width:fit-content; }
+    .tab { padding:9px 20px; font-size:13px; font-weight:500; background:transparent; border:none; color:var(--muted); cursor:pointer; transition:all .15s; }
+    .tab.active { background:var(--surface2); color:var(--text); }
+    .tab-panel { display:none; }
+    .tab-panel.active { display:block; }
+
+    /* buttons */
+    .btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:8px; border:none; font-size:13px; font-weight:500; cursor:pointer; transition:background .15s,opacity .15s; }
+    .btn:disabled { opacity:.4; cursor:not-allowed; }
+    .btn-primary { background:var(--accent); color:#fff; }
+    .btn-primary:hover:not(:disabled) { background:var(--accent-h); }
+    .btn-ghost { background:transparent; color:var(--muted); border:1px solid var(--border); }
+    .btn-ghost:hover { background:var(--surface2); color:var(--text); }
+    .btn-success { background:#22c55e; color:#fff; border:1px solid #16a34a; }
+    .btn-success:hover:not(:disabled) { background:#16a34a; }
+    .btn-sm { padding:5px 10px; font-size:12px; }
+    .btn-google { background:#fff; color:#111; width:100%; justify-content:center; padding:11px 16px; font-size:14px; border-radius:10px; }
+
+    /* upload zone */
+    .upload-zone { border:2px dashed var(--border2); border-radius:12px; padding:48px 32px; text-align:center; cursor:pointer; transition:border-color .2s, background .2s; }
+    .upload-zone:hover, .upload-zone.dragover { border-color:var(--accent); background:rgba(99,102,241,.04); }
+    .upload-icon { font-size:48px; margin-bottom:16px; }
+    .upload-title { font-size:16px; font-weight:600; margin-bottom:6px; }
+    .upload-sub { font-size:13px; color:var(--muted); }
+    .upload-sub strong { color:var(--accent); cursor:pointer; }
+
+    /* sample download */
+    .sample-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px 20px; display:flex; align-items:center; gap:16px; margin-bottom:20px; }
+    .sample-icon { font-size:28px; }
+    .sample-info { flex:1; }
+    .sample-title { font-size:14px; font-weight:600; margin-bottom:2px; }
+    .sample-desc { font-size:12px; color:var(--muted); }
+
+    /* preview table */
+    .preview-wrap { margin-top:24px; }
+    .preview-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+    .preview-title { font-size:14px; font-weight:600; }
+    .preview-count { font-size:12px; color:var(--muted); }
+    .table-wrap { background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden; overflow-x:auto; }
+    table { width:100%; border-collapse:collapse; min-width:700px; }
+    thead th { padding:10px 14px; text-align:left; font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; border-bottom:1px solid var(--border); background:var(--surface2); white-space:nowrap; }
+    tbody tr { border-bottom:1px solid var(--border); }
+    tbody tr:last-child { border-bottom:none; }
+    tbody tr:hover { background:var(--surface2); }
+    tbody td { padding:10px 14px; font-size:13px; vertical-align:middle; }
+    .row-ok   { border-left:3px solid var(--success); }
+    .row-warn { border-left:3px solid var(--warn); }
+    .row-err  { border-left:3px solid var(--danger); }
+    .row-dup  { border-left:3px solid var(--muted); opacity:.6; }
+
+    /* platform badge */
+    .pbadge { display:inline-flex; align-items:center; gap:4px; padding:2px 7px; border-radius:4px; font-size:11px; font-weight:600; }
+    .pbadge.facebook  { background:#dbeafe; color:#1d4ed8; }
+    html[data-theme="dark"] .pbadge.facebook { background:#0d2a5e; color:#60a5fa; }
+    .pbadge.thread    { background:#f1f5f9; color:#64748b; }
+    html[data-theme="dark"] .pbadge.thread { background:#1a1a1a; color:#aaa; border-color:#333; }
+    .pbadge.x         { background:#e0f2fe; color:#0369a1; }
+    html[data-theme="dark"] .pbadge.x { background:#0c2040; color:#60c4fa; }
+    .pbadge.telegram  { background:#e0f2fe; color:#0284c7; }
+    html[data-theme="dark"] .pbadge.telegram { background:#0a2a40; color:#38bdf8; }
+    .pbadge.instagram { background:#3a1030; color:#f472b6; }
+
+    /* status badge */
+    .sbadge { padding:2px 7px; border-radius:4px; font-size:11px; font-weight:600; }
+    .sbadge.ok   { background:#14532d; color:#4ade80; }
+    .sbadge.warn { background:#431407; color:#fb923c; }
+    .sbadge.err  { background:#2a0f0f; color:#f87171; }
+    .sbadge.dup  { background:#1a1a1a; color:#666; }
+
+    /* import progress */
+    .progress-wrap { margin-top:20px; display:none; }
+    .progress-bar-bg { background:var(--surface2); border-radius:8px; height:8px; overflow:hidden; margin-bottom:8px; }
+    .progress-bar { height:100%; background:var(--accent); border-radius:8px; transition:width .3s; }
+    .progress-text { font-size:13px; color:var(--muted); }
+
+    /* result summary */
+    .result-summary { display:none; margin-top:20px; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px 20px; }
+    .result-row { display:flex; gap:20px; flex-wrap:wrap; }
+    .result-item { display:flex; align-items:center; gap:8px; font-size:13px; }
+    .result-num { font-size:20px; font-weight:700; }
+
+    /* templates panel */
+    .template-list { display:flex; flex-direction:column; gap:10px; }
+    .tpl-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px 18px; }
+    .tpl-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+    .tpl-title { font-size:14px; font-weight:600; display:flex; align-items:center; gap:8px; }
+    .tpl-body { font-family:monospace; font-size:12px; color:var(--muted); background:var(--surface2); border:1px solid var(--border); border-radius:6px; padding:10px; white-space:pre-wrap; word-break:break-all; max-height:120px; overflow-y:auto; }
+    .tpl-vars { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+    .var-chip { padding:2px 8px; background:var(--surface3); border:1px solid var(--border2); border-radius:4px; font-size:11px; color:var(--muted); font-family:monospace; }
+    .tpl-actions { display:flex; gap:8px; margin-top:10px; }
+    .section-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+    .section-title { font-size:15px; font-weight:600; }
+
+    /* field */
+    .field { display:flex; flex-direction:column; gap:6px; }
+    .field label { font-size:12px; color:var(--muted); font-weight:500; }
+    .field input,.field select,.field textarea { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:9px 12px; color:var(--text); font-size:13px; outline:none; width:100%; }
+    .field input:focus,.field select:focus,.field textarea:focus { border-color:var(--border2); }
+    .field textarea { resize:vertical; min-height:100px; font-family:monospace; font-size:12px; }
+    .field select option { background:var(--surface2); }
+    .form-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+    .form-row-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; }
+
+    /* overlay / modal */
+    .overlay { position:fixed; inset:0; background:rgba(0,0,0,.75); display:flex; align-items:center; justify-content:center; z-index:1000; padding:20px; backdrop-filter:blur(4px); }
+    .modal { background:var(--surface); border:1px solid var(--border); border-radius:14px; width:100%; max-width:560px; box-shadow:0 20px 60px rgba(0,0,0,.5); max-height:90vh; display:flex; flex-direction:column; }
+    .modal-header { padding:20px 24px 0; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+    .modal-title { font-size:16px; font-weight:600; }
+    .modal-close { background:none; border:none; color:var(--muted); cursor:pointer; font-size:22px; padding:4px; }
+    .modal-body { padding:20px 24px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:14px; }
+    .modal-footer { padding:0 24px 20px; display:flex; gap:10px; justify-content:flex-end; flex-shrink:0; }
+
+    /* login */
+    .login-screen { min-height:100vh; display:flex; align-items:center; justify-content:center; }
+    .login-card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:40px; width:100%; max-width:380px; text-align:center; }
+    .login-card h2 { font-size:22px; font-weight:700; margin-bottom:6px; }
+    .login-card p { font-size:14px; color:var(--muted); margin-bottom:28px; }
+
+    /* toast */
+    .toast { position:fixed; bottom:24px; right:24px; background:var(--surface2); border:1px solid var(--border2); border-radius:10px; padding:12px 16px; font-size:13px; z-index:9999; display:flex; align-items:center; gap:8px; box-shadow:0 8px 24px rgba(0,0,0,.4); transform:translateY(80px); opacity:0; transition:all .25s; pointer-events:none; }
+    .toast.show { transform:translateY(0); opacity:1; }
+    .toast.success { border-left:3px solid var(--success); }
+    .toast.error   { border-left:3px solid var(--danger); }
+
+    /* ── nav sidebar ── */
+    .nav-sb { width:196px; flex-shrink:0; background:#0d0d0d; border-right:1px solid #1e1e1e; display:flex; flex-direction:column; overflow:hidden; }
+    .nav-brand { padding:15px 14px 13px; border-bottom:1px solid #1e1e1e; }
+    .nav-logo { font-size:15px; font-weight:800; letter-spacing:-.5px; color:var(--text); }
+    .nav-logo b { color:var(--accent); }
+    .nav-links { flex:1; padding:7px 6px; overflow-y:auto; display:flex; flex-direction:column; gap:1px; }
+    .nav-link { display:flex; align-items:center; gap:7px; padding:7px 9px; border-radius:7px; text-decoration:none; color:#555; font-size:12px; transition:all .1s; white-space:nowrap; }
+    .nav-link:hover { background:#161616; color:#ccc; }
+    .nav-link.active { background:#1a1a2a; color:#a5b4fc; font-weight:500; }
+    .nav-sep { height:1px; background:#1e1e1e; margin:4px 0; }
+    body[data-role="viewer"] .nav-admin,
+    body[data-role="editor"] .nav-admin { display:none; }
+    body[data-role="viewer"] .nav-editor { display:none; }
+    .app-layout { display:flex; height:calc(100vh - 52px); overflow:hidden; }
+    .app-main { flex:1; overflow:auto; }
+  </style>
+  <link rel="stylesheet" href="/shared.css" />
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginScreen" class="login-screen" style="display:none">
+  <div class="login-card">
+    <div style="font-size:32px;margin-bottom:16px">📥</div>
+    <h2>Autopost</h2>
+    <p>Bulk Upload Pages & Templates</p>
+    <button class="btn btn-google" id="btnGoogleLogin">
+      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 32.5 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.7-8 19.7-20 0-1.3-.1-2.7-.1-4z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 16 19 12 24 12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 16.1 4 9.3 8.4 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-1.9 13.5-5l-6.2-5.2C29.4 35.6 26.8 36 24 36c-5.2 0-9.6-3.4-11.2-8.1L6.2 33C9.2 39.5 16 44 24 44z"/><path fill="#1976D2" d="M43.6 20H24v8h11.3c-.8 2.3-2.3 4.3-4.3 5.8l6.2 5.2C41.2 35.5 44 30.2 44 24c0-1.3-.1-2.7-.4-4z"/></svg>
+      Đăng nhập bằng Google
+    </button>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="appScreen" style="display:none">
+  <div class="topbar">
+    <div class="topbar-crumb"><span class="crumb-root">Autopost</span><span class="crumb-sep">›</span><span class="crumb-page">Hệ thống · Bulk Upload</span></div>
+    <div class="sep"></div>
+    <div class="topbar-user">
+      <div class="avatar" id="avatarWrap"></div>
+      <span id="topbarEmail"></span>
+      <span id="topbarRole" style="font-size:11px;font-weight:600;padding:2px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;"></span>
+        <button class="btn btn-ghost" style="font-size:12px;padding:5px 10px" data-action="logout">Đăng xuất</button>
+    </div>
+  </div>
+
+  <div class="app-layout">
+    <!-- NAV SIDEBAR -->
+    <div class="nav-sb">
+      <div class="nav-brand"><span class="nav-logo">Auto<b>post</b></span><button class="theme-toggle" id="themeToggleBtn" onclick="toggleTheme()" title="Đổi giao diện" style="margin-left:auto">🌙</button></div>
+                  <nav class="nav-links">
+        <a class='nav-link' href='/'>🏠 Home</a>
+        <div class="nav-group-label nav-editor">ĐĂNG BÀI</div>
+        <a class='nav-link nav-editor' href='/admin-execution'>✍️ Tạo bài đăng</a>
+        <a class='nav-link' href='/admin-fb-autopost'>📘 FB Autopost</a>
+        <a class='nav-link' href='/admin-tg-autopost'>✈️ TG Autopost</a>
+        <a class='nav-link' href='/admin-ig-thread-autopost'>📸 IG/Thread Autopost</a>
+        <div class="nav-group-label">THEO DÕI</div>
+        <a class='nav-link' href='/admin-jobs'>📋 Bài đăng</a>
+        <a class='nav-link nav-editor' href='/admin-stats'>📊 Thống kê</a>
+        <div class="nav-group-label">HỆ THỐNG</div>
+        <a class='nav-link nav-editor active' href='/admin-pages'>📡 Page List</a>
+        <a class='nav-link nav-admin' href='/admin-users'>👥 Users</a>
+      </nav>
+    </div>
+
+  <div class="app-main">
+  <div class="main">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Bulk Upload</div>
+        <small style="font-size:13px;color:var(--muted);margin-top:3px;display:block">Import hàng loạt pages · Quản lý templates mẫu</small>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('pages',this)">📡 Import Pages</button>
+      <button class="tab" onclick="switchTab('templates',this)">📝 Templates</button>
+    </div>
+
+    <!-- ── TAB: Import Pages ── -->
+    <div class="tab-panel active" id="tab-pages">
+
+      <!-- Sample download -->
+      <div class="sample-card">
+        <div class="sample-icon">📄</div>
+        <div class="sample-info">
+          <div class="sample-title">File CSV mẫu</div>
+          <div class="sample-desc">Cột: page_id, page_name, page_uid (không bắt buộc), platform, page_group, logo_link, api_token, is_active, tg_type, tg_link, tg_default_link, pic_email, token_type, token_name, token_value · Hỗ trợ UTF-8<br>Có <strong>page_id</strong> (lấy từ nút "⬇ Xuất CSV" ở Page List) → khớp chính xác theo ID để <strong>cập nhật</strong>. Không có page_id → khớp theo UID, hoặc theo tên nếu không có UID; khớp được thì cập nhật, không khớp thì <strong>thêm mới</strong>.</div>
+        </div>
+        <button class="btn btn-ghost" onclick="downloadSampleCSV()">⬇ Tải file mẫu</button>
+      </div>
+
+      <!-- Upload zone -->
+      <div class="upload-zone" id="uploadZone"
+           ondrop="handleDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)"
+           onclick="document.getElementById('csvInput').click()">
+        <div class="upload-icon">📥</div>
+        <div class="upload-title">Kéo thả file CSV vào đây</div>
+        <div class="upload-sub">hoặc <strong>click để chọn file</strong> · CSV, UTF-8</div>
+        <input type="file" id="csvInput" accept=".csv,.txt" style="display:none" onchange="handleFileSelect(event)" />
+      </div>
+
+      <!-- Preview -->
+      <div class="preview-wrap" id="previewWrap" style="display:none">
+        <div class="preview-header">
+          <div>
+            <div class="preview-title" id="previewTitle">Preview</div>
+            <div class="preview-count" id="previewCount"></div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <button class="btn btn-ghost btn-sm" onclick="resetUpload()">✕ Huỷ</button>
+            <button class="btn btn-success" id="btnImport" onclick="importPages()">⬆ Import <span id="importCount">0</span> pages</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Status</th>
+                <th>Page Name</th>
+                <th>Platform</th>
+                <th>UID</th>
+                <th>Group</th>
+                <th>Logo</th>
+                <th>API Token</th>
+                <th>PIC</th>
+                <th>Token</th>
+                <th>Active</th>
+              </tr>
+            </thead>
+            <tbody id="previewBody"></tbody>
+          </table>
+        </div>
+        <!-- Progress -->
+        <div class="progress-wrap" id="progressWrap">
+          <div class="progress-bar-bg"><div class="progress-bar" id="progressBar" style="width:0%"></div></div>
+          <div class="progress-text" id="progressText">Đang import...</div>
+        </div>
+        <!-- Result -->
+        <div class="result-summary" id="resultSummary">
+          <div class="result-row">
+            <div class="result-item"><div class="result-num" id="res-ok" style="color:var(--success)">0</div><div>Thêm mới</div></div>
+            <div class="result-item"><div class="result-num" id="res-dup" style="color:#60a5fa">0</div><div>Đã cập nhật</div></div>
+            <div class="result-item"><div class="result-num" id="res-err" style="color:var(--danger)">0</div><div>Lỗi</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TAB: Templates ── -->
+    <div class="tab-panel" id="tab-templates">
+      <div class="section-header">
+        <div class="section-title">Templates mẫu</div>
+        <button class="btn btn-primary" onclick="openTemplateModal()">＋ Thêm template</button>
+      </div>
+
+      <!-- Platform filter -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px" id="tplFilter">
+        <button class="tab active" style="border-radius:8px;border:1px solid var(--border)" onclick="filterTemplates('',this)">Tất cả</button>
+        <button class="tab" style="border-radius:8px;border:1px solid var(--border)" onclick="filterTemplates('facebook',this)">Facebook</button>
+        <button class="tab" style="border-radius:8px;border:1px solid var(--border)" onclick="filterTemplates('thread',this)">Thread</button>
+        <button class="tab" style="border-radius:8px;border:1px solid var(--border)" onclick="filterTemplates('x',this)">X</button>
+        <button class="tab" style="border-radius:8px;border:1px solid var(--border)" onclick="filterTemplates('telegram',this)">Telegram</button>
+        <button class="tab" style="border-radius:8px;border:1px solid var(--border)" onclick="filterTemplates('instagram',this)">Instagram</button>
+        <button class="tab" style="border-radius:8px;border:1px solid var(--border)" onclick="filterTemplates('__universal',this)">Universal</button>
+      </div>
+
+      <div class="template-list" id="templateList">
+        <div style="text-align:center;padding:40px;color:var(--muted)">⏳ Đang tải templates...</div>
+      </div>
+    </div>
+  </div>
+  </div><!-- /app-main -->
+  </div><!-- /app-layout -->
+</div>
+
+<!-- Modal: Template -->
+<div class="overlay" id="tplModal" style="display:none" onclick="if(event.target===this)closeTplModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="tplModalTitle">Thêm Template</div>
+      <button class="modal-close" onclick="closeTplModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field"><label>Tên template *</label><input id="tm-name" type="text" placeholder="FB Post — Promo v1" /></div>
+      <div class="field"><label>Loại template</label>
+        <select id="tm-ttype" onchange="onTplTypeChange()">
+          <option value="generic">Generic (nội dung {{biến}})</option>
+          <option value="fb_autopost">Facebook - Autopost (form chuyên biệt)</option>
+        </select>
+        <span style="font-size:11px;color:var(--muted2)" id="ttypeHint">Template với các {{biến}} tự do, điền khi chạy execution</span>
+      </div>
+      <div class="form-row" id="tmPlatWtypeRow">
+        <div class="field"><label>Platform</label>
+          <select id="tm-platform">
+            <option value="">Universal (tất cả)</option>
+            <option value="facebook">Facebook</option>
+            <option value="thread">Thread</option>
+            <option value="x">X (Twitter)</option>
+            <option value="telegram">Telegram</option>
+            <option value="instagram">Instagram</option>
+          </select>
+        </div>
+        <div class="field"><label>Workflow type</label>
+          <select id="tm-wtype">
+            <option value="post">post</option>
+            <option value="story">story</option>
+            <option value="reel">reel</option>
+            <option value="caption">caption</option>
+            <option value="broadcast">broadcast</option>
+            <option value="tweet">tweet</option>
+          </select>
+        </div>
+      </div>
+      <div id="tmGenericFields">
+        <div class="field">
+          <label>Nội dung template *</label>
+          <textarea id="tm-content" placeholder="{{headline}}&#10;&#10;{{body}}&#10;&#10;{{hashtags}}"></textarea>
+          <span style="font-size:11px;color:var(--muted2)">Dùng {{tên_biến}} để tạo placeholder · n8n sẽ fill vào khi chạy workflow</span>
+        </div>
+        <div class="field">
+          <label>Variables (tách nhau bằng dấu phẩy)</label>
+          <input id="tm-vars" type="text" placeholder="headline, body, hashtags, cta_link" />
+          <span style="font-size:11px;color:var(--muted2)">Hệ thống tự parse và lưu thành JSON</span>
+        </div>
+      </div>
+      <div id="tmFbAutopostInfo" style="display:none;background:#0d1520;border:1px solid #1877f230;border-radius:8px;padding:14px;">
+        <div style="font-size:13px;font-weight:600;color:#60a5fa;margin-bottom:8px">📘 Facebook - Autopost</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.6">
+          Template chuyên biệt cho workflow đăng bài Facebook qua n8n.<br>
+          Khi chạy Execution, người dùng sẽ điền form gồm: <strong style="color:var(--text)">Ngày đăng · Loại bài · Loại nội dung · TikTok URL · Logo URL · AI Agent</strong>.<br>
+          Hệ thống tự lookup <strong style="color:var(--text)">Page ID · Access Token · API download</strong> từ tokens đã lưu.
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeTplModal()">Huỷ</button>
+      <button class="btn btn-primary" id="btnSaveTpl" onclick="saveTemplate()">Lưu</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/shared.js"></script>
+<script src="/auth-guard.js"></script>
+<script>
+const sb = getSB();
+
+const VALID_PLATFORMS = ["facebook","thread","x","telegram","instagram"];
+const SAMPLE_TEMPLATES = [
+  { platform:"facebook",  workflow_type:"post",      template_type:"fb_autopost", name:"Facebook - Autopost",
+    content:"Facebook Autopost — tự động đăng bài / reels / story qua n8n",
+    vars:[] },
+  { platform:"facebook",  workflow_type:"post",      template_type:"generic",     name:"FB — Promo Post",
+    content:"🔥 {{headline}}\n\n{{body}}\n\n👉 {{cta_link}}\n\n{{hashtags}}",
+    vars:["headline","body","cta_link","hashtags"] },
+  { platform:"instagram", workflow_type:"caption",   template_type:"generic",     name:"IG — Caption Story",
+    content:"✨ {{headline}}\n\n{{body}}\n.\n.\n.\n{{hashtags}}",
+    vars:["headline","body","hashtags"] },
+  { platform:"x",         workflow_type:"tweet",     template_type:"generic",     name:"X — Short Tweet",
+    content:"{{text}} {{url}}",
+    vars:["text","url"] },
+  { platform:"telegram",  workflow_type:"broadcast", template_type:"generic",     name:"TG — Broadcast",
+    content:"📢 <b>{{headline}}</b>\n\n{{body}}\n\n🔗 {{link}}",
+    vars:["headline","body","link"] },
+  { platform:"thread",    workflow_type:"post",      template_type:"generic",     name:"Thread — Post",
+    content:"{{headline}}\n\n{{body}}",
+    vars:["headline","body"] },
+  { platform:null,        workflow_type:"post",      template_type:"generic",     name:"Universal — Basic Post",
+    content:"{{headline}}\n\n{{body}}\n\n{{hashtags}}",
+    vars:["headline","body","hashtags"] },
+];
+
+let currentUser = null, allTemplates = [], parsedRows = [];
+let editingTplId = null, tplFilterVal = "";
+
+// ── Auth ─────────────────────────────────────────────────────
+initAuthGuard({ page: "bulk", onReady: ({ user }) => {
+  currentUser = user;
+  loadTemplates();
+  loadExistingPages();
+}});
+
+// ── Tabs ─────────────────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+  document.querySelectorAll(".tabs .tab").forEach(b => b.classList.remove("active"));
+  document.getElementById("tab-"+name).classList.add("active");
+  btn.classList.add("active");
+}
+
+// ── Existing pages (để khớp update / insert) ──────────────────
+let existingByUid = new Map();   // `platform::page_uid` → {id,page_name}
+let existingByName = new Map();  // `platform::tên đã chuẩn hoá` → {id,page_name}
+let existingById = new Map();     // id → {id,platform,page_uid,page_name}
+function normName(s) { return (s||"").trim().toLowerCase(); }
+async function loadExistingPages() {
+  const { data } = await sb.from("pages").select("id,platform,page_uid,page_name");
+  existingByUid.clear();
+  existingByName.clear();
+  existingById.clear();
+  (data??[]).forEach(p => {
+    if (p.page_uid) existingByUid.set(`${p.platform}::${p.page_uid}`, p);
+    existingByName.set(`${p.platform}::${normName(p.page_name)}`, p);
+    existingById.set(p.id, p);
+  });
+}
+
+// ── Sample CSV ───────────────────────────────────────────────
+function downloadSampleCSV() {
+  const rows = [
+    "page_id,page_name,page_uid,platform,page_group,logo_link,api_token,is_active,tg_type,tg_link,tg_default_link,pic_email,token_type,token_name,token_value",
+    ",Fanpage Brand A,123456789,facebook,Brand A,https://example.com/logo-a.png,key_abcXYZ123,true,,,,pic@company.com,page_token,Page Token A,EAABxx…",
+    ",Fanpage Brand A,123456789,facebook,Brand A,,,true,,,,pic@company.com,app_id,App ID,1234567890",
+    ",Brand A Thread,brandathread,thread,Brand A,,,true,,,,pic@company.com,access_token,Thread Token,ATToken…",
+    ",Brand A Twitter,BrandAOfficial,x,Brand A,,,true,,,,,bearer_token,Bearer,AAAAAxx…",
+    ",TG Channel Brand A,-1001234567890,telegram,Brand A,,key_tgbot123,true,channel,https://t.me/brandachannel,https://source.example.com/feed,pic@company.com,bot_token,Bot Token,123456:ABCxyz",
+    ",TG Group Brand A,-1009876543210,telegram,Brand A,,,true,group,https://t.me/brandagroup,,,bot_token,Bot Token,123456:ABCxyz",
+    ",Brand A Instagram,,instagram,Brand A,,,true,,,,,,,",
+    ",Fanpage Client B,987654321,facebook,Client B,https://example.com/logo-b.png,,true,,,,,page_token,Page Token B,EAAByy…",
+  ];
+  downloadFile(rows.join("\n"), "pages_sample.csv", "text/csv;charset=utf-8");
+}
+
+function downloadFile(content, filename, mime) {
+  const blob = new Blob(["﻿"+content], { type: mime });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+}
+
+// ── File handling ────────────────────────────────────────────
+function handleDragOver(e) { e.preventDefault(); document.getElementById("uploadZone").classList.add("dragover"); }
+function handleDragLeave()  { document.getElementById("uploadZone").classList.remove("dragover"); }
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById("uploadZone").classList.remove("dragover");
+  const file = e.dataTransfer.files[0];
+  if (file) processFile(file);
+}
+function handleFileSelect(e) { if (e.target.files[0]) processFile(e.target.files[0]); }
+
+function processFile(file) {
+  if (!file.name.match(/\.(csv|txt)$/i)) return toast("Chỉ hỗ trợ file CSV","error");
+  const reader = new FileReader();
+  reader.onload = e => parseCSV(e.target.result);
+  reader.readAsText(file, "UTF-8");
+}
+
+function parseCSV(text) {
+  const lines = text.replace(/\r/g,"").split("\n").filter(l=>l.trim());
+  if (lines.length < 2) return toast("File không có dữ liệu","error");
+  const headers = lines[0].split(",").map(h=>h.trim().toLowerCase().replace(/^"|"$/g,""));
+  const required = ["page_name","platform"];
+  const missing  = required.filter(r=>!headers.includes(r));
+  if (missing.length) return toast(`Thiếu cột: ${missing.join(", ")}`, "error");
+  parsedRows = [];
+  for (let i=1; i<lines.length; i++) {
+    const cols = splitCSVLine(lines[i]);
+    const obj  = {};
+    headers.forEach((h,j) => obj[h] = (cols[j]??"").trim().replace(/^"|"$/g,""));
+    const tokenVal = (obj.token_value ?? "").trim();
+    const row = {
+      page_id:     (obj.page_id ?? obj.id ?? "").trim(),
+      page_name:   obj.page_name  ?? "",
+      page_uid:    obj.page_uid   ?? "",
+      platform:    (obj.platform  ?? "").toLowerCase(),
+      page_group:  obj.page_group ?? "",
+      logo_link:       obj.logo_link      ?? obj.page_link ?? "",
+      api_url:         obj.api_token      ?? obj.api_url   ?? "",
+      is_active:       (obj.is_active     ?? "true").toLowerCase() !== "false",
+      tg_type:         obj.tg_type        ? obj.tg_type.trim().toLowerCase() : "",
+      tg_link:         obj.tg_link        ?? "",
+      tg_default_link: obj.tg_default_link ?? "",
+      pic_email:       (obj.pic_email     ?? "").trim(),
+      token_type:      (obj.token_type    ?? "").trim(),
+      token_name:      (obj.token_name    ?? "").trim(),
+      token_value:     tokenVal,
+      _line: i+1,
+    };
+    row._errors = [];
+    row._warns  = [];
+    if (!row.page_name) row._errors.push("Thiếu tên");
+    if (!VALID_PLATFORMS.includes(row.platform)) row._errors.push(`Platform "${row.platform}" không hợp lệ`);
+    // Khớp page đã có: ưu tiên tuyệt đối theo page_id (chính xác 1-1, lấy từ Export CSV),
+    // nếu không có page_id mới fallback theo UID, rồi theo tên (UID không bắt buộc).
+    if (row.page_id) {
+      const byId = existingById.get(row.page_id);
+      if (!byId) row._errors.push(`Page ID "${row.page_id}" không tồn tại`);
+      row._existingId = byId?.id || null;
+    } else {
+      const matched = (row.page_uid && existingByUid.get(`${row.platform}::${row.page_uid}`))
+        || existingByName.get(`${row.platform}::${normName(row.page_name)}`)
+        || null;
+      row._existingId = matched?.id || null;
+    }
+    row._action = row._existingId ? "update" : "insert";
+    if (row.logo_link && !row.logo_link.startsWith("http")) row._warns.push("Logo link không có http");
+    if (row.token_value && !row.token_type) row._warns.push("Có token_value nhưng thiếu token_type");
+    parsedRows.push(row);
+  }
+  renderPreview();
+}
+
+function splitCSVLine(line) {
+  const res = []; let cur = "", inQ = false;
+  for (let i=0; i<line.length; i++) {
+    if (line[i]==='"') { inQ=!inQ; continue; }
+    if (line[i]==="," && !inQ) { res.push(cur); cur=""; continue; }
+    cur += line[i];
+  }
+  res.push(cur);
+  return res;
+}
+
+function renderPreview() {
+  const valid  = parsedRows.filter(r => !r._errors.length);
+  const upd    = valid.filter(r => r._action === "update").length;
+  const ins    = valid.filter(r => r._action === "insert").length;
+  document.getElementById("previewWrap").style.display = "block";
+  document.getElementById("uploadZone").style.display  = "none";
+  document.getElementById("previewTitle").textContent  = `Preview — ${parsedRows.length} dòng`;
+  document.getElementById("previewCount").textContent  =
+    `✅ ${valid.length} hợp lệ (🔄 ${upd} cập nhật · 🆕 ${ins} mới) · ⚠️ ${parsedRows.filter(r=>r._warns.length&&!r._errors.length).length} cảnh báo · ❌ ${parsedRows.filter(r=>r._errors.length).length} lỗi`;
+  document.getElementById("importCount").textContent = valid.length;
+  const tbody = document.getElementById("previewBody");
+  tbody.innerHTML = parsedRows.map((r,i) => {
+    const isUpd = r._action === "update";
+    const cls = r._errors.length ? "row-err" : isUpd ? "row-dup" : r._warns.length ? "row-warn" : "row-ok";
+    const badgeCls = r._errors.length ? "err" : isUpd ? "dup" : r._warns.length ? "warn" : "ok";
+    const badgeTxt = r._errors.length ? "❌ Lỗi" : isUpd ? "🔄 Cập nhật" : r._warns.length ? "⚠️ Mới" : "🆕 Mới";
+    const msgs = [...r._errors, ...r._warns].join("; ");
+    return `<tr class="${cls}">
+      <td style="color:var(--muted);font-size:12px">${r._line}</td>
+      <td><span class="sbadge ${badgeCls}" title="${esc(msgs)}">${badgeTxt}</span></td>
+      <td style="font-weight:500">${esc(r.page_name)||'<span style="color:var(--danger)">—</span>'}</td>
+      <td>${VALID_PLATFORMS.includes(r.platform)?`<span class="pbadge ${r.platform}">${cap(r.platform)}</span>`:`<span style="color:var(--danger)">${esc(r.platform)||"—"}</span>`}</td>
+      <td style="font-family:monospace;font-size:12px;color:var(--muted)">${esc(r.page_uid)||"—"}</td>
+      <td>${r.page_group?`<span style="font-size:12px">${esc(r.page_group)}</span>`:"—"}</td>
+      <td style="font-size:12px;color:var(--muted)">${r.logo_link?`<a href="${esc(r.logo_link)}" target="_blank" style="color:#60a5fa;text-decoration:none">🖼️</a>`:"—"}</td>
+      <td style="font-family:monospace;font-size:11px;color:#60a5fa;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.api_url)}">${r.api_url?r.api_url.substring(0,18)+(r.api_url.length>18?"…":""):"—"}</td>
+      <td style="font-size:11px;color:var(--muted)">${esc(r.pic_email)||"—"}</td>
+      <td style="font-size:12px">${r.token_value?`<span style="color:var(--warn)" title="${esc(r.token_type+': '+r.token_name)}">🔑 ${esc(r.token_type||"?")}</span>`:"—"}</td>
+      <td><span style="font-size:12px;color:${r.is_active?'var(--success)':'var(--muted)'}">${r.is_active?"●":"○"}</span></td>
+    </tr>`;
+  }).join("");
+}
+
+function resetUpload() {
+  parsedRows = [];
+  document.getElementById("uploadZone").style.display   = "block";
+  document.getElementById("previewWrap").style.display  = "none";
+  document.getElementById("progressWrap").style.display = "none";
+  document.getElementById("resultSummary").style.display = "none";
+  document.getElementById("csvInput").value = "";
+}
+
+// Key dùng để map page-id cho việc gắn token, khớp đúng logic match ở parseCSV
+function rowKey(r) { return r.page_uid ? `${r.platform}::uid::${r.page_uid}` : `${r.platform}::name::${normName(r.page_name)}`; }
+
+async function importPages() {
+  const valid = parsedRows.filter(r => !r._errors.length);
+  if (!valid.length) return toast("Không có dữ liệu hợp lệ để import","error");
+  const toUpdate = valid.filter(r => r._action === "update");
+  const toInsert = valid.filter(r => r._action === "insert");
+  const btn = document.getElementById("btnImport");
+  btn.disabled = true;
+  document.getElementById("progressWrap").style.display = "block";
+  document.getElementById("resultSummary").style.display = "none";
+  let ins=0, upd=0, err=0, tokOk=0;
+  const BATCH = 20;
+  const pageIdMap = {}; // rowKey(r) → page id, dùng để gắn token ngay sau đó
+  const total = toUpdate.length + toInsert.length;
+  let done = 0;
+
+  // ── Cập nhật page đã có (upsert theo id = conflict target mặc định) ──
+  for (let i=0; i<toUpdate.length; i+=BATCH) {
+    const chunk = toUpdate.slice(i, i+BATCH);
+    const batch = chunk.map(r => ({
+      id:         r._existingId,
+      page_name:  r.page_name,
+      page_uid:   r.page_uid || null,
+      platform:   r.platform,
+      page_group:      r.page_group      || null,
+      logo_link:       r.logo_link       || null,
+      api_url:         r.api_url         || null,
+      is_active:       r.is_active,
+      tg_type:         r.platform === "telegram" && r.tg_type ? r.tg_type : null,
+      tg_link:         r.platform === "telegram" && r.tg_link ? r.tg_link : null,
+      tg_default_link: r.platform === "telegram" && r.tg_default_link ? r.tg_default_link : null,
+      pic_email:       r.pic_email || null,
+    }));
+    const { error } = await sb.from("pages").upsert(batch);
+    if (error) err += batch.length;
+    else { upd += batch.length; chunk.forEach(r => { pageIdMap[rowKey(r)] = r._existingId; }); }
+    done += chunk.length;
+    document.getElementById("progressBar").style.width  = Math.round(done/total*100)+"%";
+    document.getElementById("progressText").textContent = `Đang cập nhật pages... ${done}/${total}`;
+  }
+
+  // ── Thêm page mới ──
+  for (let i=0; i<toInsert.length; i+=BATCH) {
+    const chunk = toInsert.slice(i, i+BATCH);
+    const batch = chunk.map(r => ({
+      user_id:    currentUser.id,
+      page_name:  r.page_name,
+      page_uid:   r.page_uid || null,
+      platform:   r.platform,
+      page_group:      r.page_group      || null,
+      logo_link:       r.logo_link       || null,
+      api_url:         r.api_url         || null,
+      is_active:       r.is_active,
+      tg_type:         r.platform === "telegram" && r.tg_type ? r.tg_type : null,
+      tg_link:         r.platform === "telegram" && r.tg_link ? r.tg_link : null,
+      tg_default_link: r.platform === "telegram" && r.tg_default_link ? r.tg_default_link : null,
+      pic_email:       r.pic_email || null,
+    }));
+    const { error, data } = await sb.from("pages").insert(batch).select("id,platform,page_uid,page_name");
+    if (error) err += batch.length;
+    else {
+      ins += data?.length ?? batch.length;
+      (data??[]).forEach(p => { pageIdMap[p.page_uid ? `${p.platform}::uid::${p.page_uid}` : `${p.platform}::name::${normName(p.page_name)}`] = p.id; });
+    }
+    done += chunk.length;
+    document.getElementById("progressBar").style.width  = Math.round(done/total*100)+"%";
+    document.getElementById("progressText").textContent = `Đang thêm pages mới... ${done}/${total}`;
+  }
+
+  // Cập nhật / thêm tokens cho các dòng có token_value
+  const tokenRows = valid.filter(r => r.token_value && r.token_type);
+  if (tokenRows.length) {
+    document.getElementById("progressText").textContent = `Đang lưu ${tokenRows.length} tokens...`;
+
+    // Tra token đã có theo (page_id, token_type) để UPDATE đúng token đó thay vì tạo trùng
+    const pidsInvolved = [...new Set(tokenRows.map(r => pageIdMap[rowKey(r)]).filter(Boolean))];
+    const existingTokenMap = new Map(); // `page_id::token_type` -> token id
+    if (pidsInvolved.length) {
+      const { data: existTok } = await sb.from("page_tokens").select("id,page_id,token_type").in("page_id", pidsInvolved);
+      (existTok??[]).forEach(t => existingTokenMap.set(`${t.page_id}::${t.token_type}`, t.id));
+    }
+
+    const tokenUpdates = [], tokenInserts = [];
+    tokenRows.forEach(r => {
+      const pid = pageIdMap[rowKey(r)];
+      if (!pid) return;
+      const existingId = existingTokenMap.get(`${pid}::${r.token_type}`);
+      const base = {
+        user_id:     currentUser.id,
+        page_id:     pid,
+        token_type:  r.token_type,
+        token_name:  r.token_name || r.token_type,
+        token_value: r.token_value,
+        is_active:   true,
+      };
+      if (existingId) tokenUpdates.push({ id: existingId, ...base });
+      else tokenInserts.push(base);
+    });
+
+    if (tokenUpdates.length) {
+      const { data: tu } = await sb.from("page_tokens").upsert(tokenUpdates).select("id");
+      tokOk += tu?.length ?? 0;
+    }
+    if (tokenInserts.length) {
+      const { data: td } = await sb.from("page_tokens").insert(tokenInserts).select("id");
+      tokOk += td?.length ?? 0;
+    }
+  }
+
+  document.getElementById("progressBar").style.width = "100%";
+  document.getElementById("progressText").textContent = "Hoàn thành!";
+  document.getElementById("res-ok").textContent  = ins;
+  document.getElementById("res-dup").textContent = upd;
+  document.getElementById("res-err").textContent = err;
+  document.getElementById("resultSummary").style.display = "block";
+  btn.disabled = false;
+  await loadExistingPages();
+  const tokMsg = tokOk > 0 ? ` · ${tokOk} tokens` : "";
+  toast(`Import xong: ${ins} mới, ${upd} đã cập nhật${tokMsg}${err?`, ${err} lỗi`:""}`, err && !ins && !upd ?"error":"success");
+}
+
+// ── Templates ────────────────────────────────────────────────
+async function loadTemplates() {
+  const { data } = await sb.from("templates").select("*").eq("is_active",true).order("platform").order("name");
+  allTemplates = data ?? [];
+  // Seed FB autopost template if missing (even if other templates exist)
+  const hasFb = allTemplates.some(t => t.template_type === "fb_autopost");
+  if (!allTemplates.length) {
+    await seedSampleTemplates();
+  } else {
+    if (!hasFb) await seedFbTemplate();
+    renderTemplates();
+  }
+}
+
+async function seedSampleTemplates() {
+  const inserts = SAMPLE_TEMPLATES.map(t => ({
+    user_id:       currentUser.id,
+    name:          t.name,
+    platform:      t.platform ?? null,
+    workflow_type: t.workflow_type,
+    template_type: t.template_type ?? "generic",
+    content:       t.content,
+    variables:     (t.vars??[]).map(v=>({name:v,type:"string",required:true})),
+    is_active:     true,
+  }));
+  const {data} = await sb.from("templates").insert(inserts).select();
+  allTemplates = data ?? [];
+  renderTemplates();
+  toast(`Đã tạo ${inserts.length} templates mẫu`, "success");
+}
+
+async function seedFbTemplate() {
+  const fb = SAMPLE_TEMPLATES.find(t => t.template_type === "fb_autopost");
+  if (!fb) return;
+  const { data } = await sb.from("templates").insert({
+    user_id:       currentUser.id,
+    name:          fb.name,
+    platform:      "facebook",
+    workflow_type: fb.workflow_type,
+    template_type: "fb_autopost",
+    content:       fb.content,
+    variables:     [],
+    is_active:     true,
+  }).select().single();
+  if (data) {
+    allTemplates.push(data);
+    toast("Đã tạo template Facebook Autopost", "success");
+  }
+}
+
+function filterTemplates(val, btn) {
+  tplFilterVal = val;
+  document.querySelectorAll("#tplFilter .tab").forEach(b=>b.classList.remove("active"));
+  btn.classList.add("active");
+  renderTemplates();
+}
+
+function renderTemplates() {
+  const filtered = allTemplates.filter(t => {
+    if (!tplFilterVal) return true;
+    if (tplFilterVal === "__universal") return !t.platform;
+    return t.platform === tplFilterVal;
+  });
+  const el = document.getElementById("templateList");
+  if (!filtered.length) {
+    el.innerHTML = `<div style="text-align:center;padding:40px;color:var(--muted)">Không có template nào</div>`;
+    return;
+  }
+  el.innerHTML = filtered.map(t => {
+    const vars = Array.isArray(t.variables) ? t.variables : [];
+    const isFb = t.template_type === "fb_autopost";
+    return `<div class="tpl-card" style="${isFb?'border-color:#1877f230;background:#0a1020':''}">
+      <div class="tpl-header">
+        <div class="tpl-title">
+          ${isFb?'📘':'📝'} ${esc(t.name)}
+          ${t.platform ? `<span class="pbadge ${t.platform}">${cap(t.platform)}</span>` : '<span class="pbadge" style="background:var(--surface3);color:var(--muted);border:1px solid var(--border2)">Universal</span>'}
+          ${isFb
+            ? '<span style="font-size:11px;color:#60a5fa;background:#0d2a5e;padding:2px 7px;border-radius:4px;border:1px solid #1877f240">fb_autopost</span>'
+            : `<span style="font-size:11px;color:var(--muted);background:var(--surface2);padding:2px 7px;border-radius:4px;border:1px solid var(--border)">${esc(t.workflow_type??'post')}</span>`}
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" onclick="copyTemplateContent('${esc(t.content??"").replace(/'/g,"\\'")}')">Copy</button>
+          <button class="btn btn-ghost btn-sm" onclick="openTemplateModal('${t.id}')">Sửa</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteTemplate('${t.id}','${esc(t.name)}')">Xoá</button>
+        </div>
+      </div>
+      ${isFb
+        ? `<div style="font-size:12px;color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;line-height:1.6">Form chuyên biệt: Ngày đăng · Loại bài (Post/Reels/Story/Live) · Loại nội dung · TikTok URL · Logo URL · AI Agent<br><span style="color:var(--muted2)">→ Lưu vào bảng fb_autopost_jobs</span></div>`
+        : `<div class="tpl-body">${esc(t.content??"")}</div>`}
+      ${!isFb&&vars.length?`<div class="tpl-vars">${vars.map(v=>`<span class="var-chip">{{${esc(typeof v==='object'?v.name:v)}}}</span>`).join("")}</div>`:""}
+    </div>`;
+  }).join("");
+}
+
+function copyTemplateContent(content) {
+  navigator.clipboard.writeText(content.replace(/\\n/g,"\n"));
+  toast("Đã copy nội dung template","success");
+}
+
+// Template Modal
+function openTemplateModal(id) {
+  editingTplId = id ?? null;
+  const t = id ? allTemplates.find(x=>x.id===id) : null;
+  document.getElementById("tplModalTitle").textContent = t ? "Chỉnh sửa Template" : "Thêm Template";
+  document.getElementById("tm-name").value       = t?.name          ?? "";
+  document.getElementById("tm-platform").value   = t?.platform      ?? "";
+  document.getElementById("tm-wtype").value      = t?.workflow_type ?? "post";
+  document.getElementById("tm-content").value    = t?.content       ?? "";
+  document.getElementById("tm-ttype").value      = t?.template_type ?? "generic";
+  const vars = Array.isArray(t?.variables) ? t.variables.map(v=>typeof v==='object'?v.name:v).join(", ") : "";
+  document.getElementById("tm-vars").value = vars;
+  onTplTypeChange();
+  document.getElementById("tplModal").style.display = "flex";
+  setTimeout(()=>document.getElementById("tm-name").focus(),50);
+}
+
+function onTplTypeChange() {
+  const isFb = document.getElementById("tm-ttype").value === "fb_autopost";
+  document.getElementById("tmGenericFields").style.display  = isFb ? "none" : "block";
+  document.getElementById("tmFbAutopostInfo").style.display = isFb ? "block" : "none";
+  document.getElementById("ttypeHint").textContent = isFb
+    ? "Form chuyên biệt cho workflow đăng bài Facebook · lưu vào fb_autopost_jobs"
+    : "Template với các {{biến}} tự do, điền khi chạy execution";
+  if (isFb) {
+    document.getElementById("tm-platform").value = "facebook";
+    document.getElementById("tm-wtype").value    = "post";
+  }
+}
+function closeTplModal() { document.getElementById("tplModal").style.display="none"; editingTplId=null; }
+
+async function saveTemplate() {
+  const name    = document.getElementById("tm-name").value.trim();
+  const platform= document.getElementById("tm-platform").value || null;
+  const wtype   = document.getElementById("tm-wtype").value;
+  const content = document.getElementById("tm-content").value.trim();
+  const varsRaw = document.getElementById("tm-vars").value;
+  if (!name)    return toast("Nhập tên template","error");
+  if (!content) return toast("Nhập nội dung template","error");
+  const ttype    = document.getElementById("tm-ttype").value;
+  const isFb     = ttype === "fb_autopost";
+  const variables = isFb ? [] : varsRaw.split(",").map(v=>v.trim()).filter(Boolean).map(v=>({name:v,type:"string",required:true}));
+  const finalContent = isFb ? "Facebook Autopost — tự động đăng bài / reels / story qua n8n" : content;
+  if (!isFb && !content) return toast("Nhập nội dung template","error");
+  const btn = document.getElementById("btnSaveTpl");
+  btn.disabled=true; btn.textContent="Đang lưu...";
+  try {
+    const payload = { name, platform: isFb ? "facebook" : platform, workflow_type:wtype, template_type:ttype, content:finalContent, variables, is_active:true };
+    if (editingTplId) {
+      const {error}=await sb.from("templates").update(payload).eq("id",editingTplId);
+      if (error) throw error;
+      toast("Đã cập nhật template","success");
+    } else {
+      const {error}=await sb.from("templates").insert({...payload,user_id:currentUser.id});
+      if (error) throw error;
+      toast("Đã thêm template","success");
+    }
+    closeTplModal(); await loadTemplates();
+  } catch(e) { toast(e.message,"error"); }
+  finally { btn.disabled=false; btn.textContent="Lưu"; }
+}
+
+async function deleteTemplate(id, name) {
+  if (!confirm(`Xoá template "${name}"?`)) return;
+  const {error} = await sb.from("templates").update({is_active:false}).eq("id",id);
+  if (error) return toast(error.message,"error");
+  toast("Đã xoá template","success");
+  await loadTemplates();
+}
+
+// ── Utils ────────────────────────────────────────────────────
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeTplModal();});
+let toastTimer;
+function toast(msg,type="success"){
+  const el=document.getElementById("toast");
+  el.textContent=(type==="success"?"✓  ":"✕  ")+msg;
+  el.className=`toast ${type} show`;
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>el.classList.remove("show"),3500);
+}
+function esc(s){return(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function cap(s){return s?s[0].toUpperCase()+s.slice(1):"";}
+</script>
+</body>
+</html>

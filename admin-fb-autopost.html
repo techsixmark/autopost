@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>Autopost — Facebook Autopost</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+  --bg:#f4f6f9; --surface:#ffffff; --surface2:#f4f6f9; --surface3:#eef1f6;
+  --border:#dde1e7; --border2:#e2e6ec; --text:#1a1d24; --text2:#374151;
+  --muted:#6b7280; --muted2:#9ca3af; --muted3:#c0c7d1;
+  --accent:#7c5cff; --accent-h:#6b4ef0;
+  --danger:#ef4444; --success:#22c55e; --warn:#f59e0b;
+  --fb:#1877f2; --x:#1da1f2; --tg:#2aabee; --ig:#e1306c;
+  --sidebar-w:248px;
+}
+    body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* topbar */
+    .topbar { height:52px; background:var(--surface); border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 24px; gap:12px; position:sticky; top:0; z-index:100; }
+    .logo { font-weight:700; font-size:15px; letter-spacing:-.3px; }
+    .logo span { color:#6366f1; }
+    .sep { flex:1; }
+    .topbar-user { font-size:13px; color:var(--muted); display:flex; align-items:center; gap:10px; }
+    .avatar { width:28px; height:28px; border-radius:50%; background:var(--surface2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; overflow:hidden; font-size:14px; }
+
+    /* login */
+    .login-screen { min-height:100vh; display:flex; align-items:center; justify-content:center; }
+    .login-card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:40px; width:100%; max-width:380px; text-align:center; }
+    .login-card h2 { font-size:22px; font-weight:700; margin-bottom:6px; }
+    .login-card p { font-size:14px; color:var(--muted); margin-bottom:28px; }
+    .btn-google { background:#fff; color:#111; width:100%; display:flex; align-items:center; justify-content:center; gap:10px; padding:11px 16px; font-size:14px; border-radius:10px; border:none; cursor:pointer; margin-top:8px; }
+
+    /* buttons */
+    .btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:8px; border:none; font-size:13px; font-weight:500; cursor:pointer; transition:background .15s,opacity .15s; }
+    .btn:disabled { opacity:.4; cursor:not-allowed; }
+    .btn-primary { background:var(--accent); color:#fff; }
+    .btn-primary:hover:not(:disabled) { background:var(--accent-h); }
+    .btn-ghost { background:transparent; color:var(--muted); border:1px solid var(--border); }
+    .btn-ghost:hover { background:var(--surface2); color:var(--text); }
+    .btn-sm { padding:5px 10px; font-size:12px; }
+    .btn-danger { background:transparent; color:var(--danger); border:1px solid #3a1a1a; }
+    .btn-danger:hover { background:#fee2e2; }
+    html[data-theme="dark"] .btn-danger:hover { background:#2a1010; }
+
+    /* main */
+    .main { padding:24px 16px 60px; max-width:1200px; margin:0 auto; }
+
+    /* page header */
+    .page-header { display:flex; align-items:center; gap:16px; margin-bottom:24px; }
+    .page-header h1 { font-size:20px; font-weight:700; }
+    .page-header .sub { font-size:13px; color:var(--muted); margin-top:2px; }
+    .page-header .actions { margin-left:auto; display:flex; gap:8px; }
+
+    /* stats */
+    .stats { display:flex; gap:12px; margin-bottom:24px; flex-wrap:wrap; }
+    .stat { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px 20px; min-width:120px; }
+    .stat .num { font-size:24px; font-weight:700; line-height:1; }
+    .stat .lbl { font-size:12px; color:var(--muted); margin-top:4px; }
+    .stat.blue .num { color:#60a5fa; }
+    .stat.green .num { color:var(--success); }
+    .stat.warn .num { color:var(--warn); }
+    .stat.red .num { color:var(--danger); }
+
+    /* filters */
+    .filters { display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center; }
+    .filters input, .filters select { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:8px 12px; color:var(--text); font-size:13px; outline:none; }
+    .filters input:focus, .filters select:focus { border-color:var(--accent); }
+    .filters input { flex:1; min-width:200px; }
+
+    /* table */
+    .table-wrap { background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden; overflow-x:auto; }
+    table { width:100%; border-collapse:collapse; font-size:13px; }
+    thead th { text-align:left; padding:10px 14px; font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; border-bottom:1px solid var(--border); background:var(--surface2); white-space:nowrap; }
+    tbody tr { border-bottom:1px solid #1a1a1a; transition:background .1s; }
+    tbody tr:last-child { border-bottom:none; }
+    tbody tr:hover { background:var(--surface2); }
+    html[data-theme="dark"] tbody tr:hover { background:#161616; }
+    tbody td { padding:10px 14px; vertical-align:middle; }
+    .td-actions { display:flex; gap:6px; justify-content:flex-end; }
+
+    /* status badges — pill style */
+    .badge { display:inline-flex; align-items:center; gap:4px; padding:3px 9px; border-radius:20px; font-size:11px; font-weight:600; white-space:nowrap; }
+    .badge-pending           { background:#fef3c7; color:#b45309; }
+    .badge-processing        { background:#dbeafe; color:#1d4ed8; }
+    .badge-success           { background:#dcfce7; color:#15803d; }
+    .badge-error_video_large { background:#ffedd5; color:#c2410c; }
+    .badge-error_link        { background:#fee2e2; color:#b91c1c; }
+    .badge-error             { background:#fee2e2; color:#b91c1c; }
+    .badge-ignored           { background:#f1f5f9; color:#64748b; }
+    html[data-theme="dark"] .badge-pending           { background:#2a1f00; color:#fbbf24; }
+    html[data-theme="dark"] .badge-processing        { background:#0a1a3a; color:#60a5fa; }
+    html[data-theme="dark"] .badge-success           { background:#0a2a12; color:#4ade80; }
+    html[data-theme="dark"] .badge-error_video_large { background:#2a1500; color:#fb923c; }
+    html[data-theme="dark"] .badge-error_link,
+    html[data-theme="dark"] .badge-error             { background:#2a0a0a; color:#f87171; }
+    html[data-theme="dark"] .badge-ignored           { background:#1a1a1a; color:#555; }
+    .n8n-badge { display:inline-block; padding:2px 8px; border-radius:20px; font-size:11px; font-weight:600; white-space:nowrap; }
+    .n8n-success { background:#dcfce7; color:#15803d; }
+    .n8n-error, .n8n-errlink { background:#fee2e2; color:#b91c1c; }
+    .n8n-running { background:#dbeafe; color:#1d4ed8; }
+    html[data-theme="dark"] .n8n-success  { background:#0a2a12; color:#4ade80; }
+    html[data-theme="dark"] .n8n-error, html[data-theme="dark"] .n8n-errlink { background:#2a0a0a; color:#f87171; }
+    html[data-theme="dark"] .n8n-running  { background:#0a1a3a; color:#60a5fa; }
+
+    /* action type chips */
+    .chip { display:inline-block; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600; background:var(--surface2); color:var(--muted); border:1px solid var(--border); }
+    .chip-download_video { background:#ede9fe; color:#7c3aed; border-color:#ddd6fe; }
+    .chip-none            { background:var(--surface2); color:var(--muted); border-color:var(--border); }
+    html[data-theme="dark"] .chip-download_video { background:#1a1530; color:#a78bfa; border-color:#2d2050; }
+
+    /* ai badge */
+    .ai-on  { background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; border-radius:20px; padding:2px 8px; font-size:11px; font-weight:600; }
+    .ai-off { color:var(--muted2); font-size:12px; }
+    html[data-theme="dark"] .ai-on { background:#0f1a1a; color:#2dd4bf; border-color:#1a2d2d; }
+
+    /* modal */
+    .overlay { position:fixed; inset:0; background:rgba(0,0,0,.7); display:flex; align-items:center; justify-content:center; z-index:1000; padding:16px; }
+    .modal { background:var(--surface); border:1px solid var(--border); border-radius:16px; width:100%; max-width:580px; max-height:90vh; overflow-y:auto; }
+    .modal-header { padding:20px 24px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; background:var(--surface); z-index:1; }
+    .modal-header h2 { font-size:17px; font-weight:600; }
+    .modal-body { padding:20px 24px; display:flex; flex-direction:column; gap:16px; }
+    .modal-footer { padding:16px 24px; border-top:1px solid var(--border); display:flex; gap:8px; justify-content:flex-end; }
+
+    /* form fields */
+    .field { display:flex; flex-direction:column; gap:6px; }
+    .field label { font-size:12px; font-weight:600; color:#999; }
+    .field input, .field select, .field textarea {
+      background:#111; border:1px solid #2a2a2a; border-radius:8px;
+      padding:9px 12px; color:var(--text); font-size:13px; outline:none; font-family:inherit;
+    }
+    .field input:focus, .field select:focus, .field textarea:focus { border-color:#444; }
+    .field textarea { resize:vertical; min-height:70px; }
+    .field .hint { font-size:11px; color:var(--muted); }
+
+    /* toggle */
+    .toggle-row { display:flex; align-items:center; justify-content:space-between; }
+    .toggle-row label { font-size:13px; color:var(--text); }
+    .toggle { position:relative; width:40px; height:22px; }
+    .toggle input { opacity:0; width:0; height:0; }
+    .toggle-slider { position:absolute; inset:0; background:#333; border-radius:11px; cursor:pointer; transition:.2s; }
+    .toggle-slider::before { content:''; position:absolute; width:16px; height:16px; left:3px; top:3px; background:#fff; border-radius:50%; transition:.2s; }
+    .toggle input:checked + .toggle-slider { background:var(--accent); }
+    .toggle input:checked + .toggle-slider::before { transform:translateX(18px); }
+
+    /* sys info box */
+    .sys-box { background:#0d1117; border:1px solid #1e2633; border-radius:8px; padding:12px 14px; display:flex; flex-direction:column; gap:6px; }
+    .sys-row { display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:12px; }
+    .sys-row .sk { color:var(--muted); flex-shrink:0; }
+    .sys-row .sv { font-family:monospace; color:#7dd3fc; text-align:right; word-break:break-all; font-size:11px; }
+    .sys-row .sv.empty { color:#333; font-style:italic; font-family:system-ui; }
+    .sys-loading { color:var(--muted2); font-size:12px; font-style:italic; }
+
+    /* detail panel */
+    .detail-row { display:flex; gap:8px; align-items:baseline; font-size:13px; }
+    .detail-row .dk { color:var(--muted); flex-shrink:0; min-width:130px; font-size:12px; }
+    .detail-row .dv { word-break:break-all; }
+    .detail-row .dv a { color:#60a5fa; text-decoration:none; }
+    .detail-row .dv a:hover { text-decoration:underline; }
+    .img-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-top:8px; }
+    .img-grid a { display:block; background:#111; border:1px solid #222; border-radius:6px; aspect-ratio:1; overflow:hidden; }
+    .img-grid a img { width:100%; height:100%; object-fit:cover; }
+
+    .empty-state { padding:60px 20px; text-align:center; color:var(--muted); }
+    .empty-state .icon { font-size:40px; margin-bottom:12px; }
+
+    /* toast */
+    #toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:#222; border:1px solid #333; border-radius:8px; padding:10px 20px; font-size:13px; z-index:9999; opacity:0; transition:opacity .2s; pointer-events:none; white-space:nowrap; }
+    #toast.show { opacity:1; }
+
+    @media(max-width:768px) {
+      .stats { gap:8px; }
+      .stat { min-width:100px; padding:10px 14px; }
+      .filters { gap:8px; }
+      thead th:nth-child(n+5) { display:none; }
+      tbody td:nth-child(n+5) { display:none; }
+    }
+
+    /* ── nav sidebar ── */
+    .nav-sb { width:196px; flex-shrink:0; background:#0d0d0d; border-right:1px solid #1e1e1e; display:flex; flex-direction:column; overflow:hidden; }
+    .nav-brand { padding:15px 14px 13px; border-bottom:1px solid #1e1e1e; }
+    .nav-logo { font-size:15px; font-weight:800; letter-spacing:-.5px; color:var(--text); }
+    .nav-logo b { color:var(--accent); }
+    .nav-links { flex:1; padding:7px 6px; overflow-y:auto; display:flex; flex-direction:column; gap:1px; }
+    .nav-link { display:flex; align-items:center; gap:7px; padding:7px 9px; border-radius:7px; text-decoration:none; color:#555; font-size:12px; transition:all .1s; white-space:nowrap; }
+    .nav-link:hover { background:#161616; color:#ccc; }
+    .nav-link.active { background:#1a1a2a; color:#a5b4fc; font-weight:500; }
+    .nav-sep { height:1px; background:#1e1e1e; margin:4px 0; }
+    body[data-role="viewer"] .nav-admin,
+    body[data-role="editor"] .nav-admin { display:none; }
+    body[data-role="viewer"] .nav-editor { display:none; }
+    .app-layout { display:flex; height:calc(100vh - 52px); overflow:hidden; }
+    .app-main { flex:1; overflow:auto; }
+  </style>
+  <link rel="stylesheet" href="/shared.css" />
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginScreen" class="login-screen" style="display:none">
+  <div class="login-card">
+    <div style="font-size:36px;margin-bottom:16px">📘</div>
+    <h2>Autopost</h2>
+    <p>Facebook Autopost · Đăng nhập để tiếp tục</p>
+    <button class="btn-google" id="btnGoogleLogin">
+      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 32.5 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.7-8 19.7-20 0-1.3-.1-2.7-.1-4z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 16 19 12 24 12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 16.1 4 9.3 8.4 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-1.9 13.5-5l-6.2-5.2C29.4 35.6 26.8 36 24 36c-5.2 0-9.6-3.4-11.2-8.1L6.2 33C9.2 39.5 16 44 24 44z"/><path fill="#1976D2" d="M43.6 20H24v8h11.3c-.8 2.3-2.3 4.3-4.3 5.8l6.2 5.2C41.2 35.5 44 30.2 44 24c0-1.3-.1-2.7-.4-4z"/></svg>
+      Đăng nhập bằng Google
+    </button>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="appScreen" style="display:none">
+  <div class="topbar">
+    <div class="topbar-crumb"><span class="crumb-root">Autopost</span><span class="crumb-sep">›</span><span class="crumb-page">Đăng bài · FB Autopost</span></div>
+    <div style="font-size:12px;color:#444;padding:2px 8px;background:#111;border:1px solid var(--border);border-radius:4px;">📘 Facebook</div>
+    <div class="sep"></div>
+    <div class="topbar-user">
+      <div class="avatar" id="avatarWrap"></div>
+      <span id="topbarEmail"></span>
+      <span id="topbarRole" style="font-size:11px;font-weight:600;padding:2px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;"></span>
+        <button class="btn btn-ghost" style="font-size:12px;padding:5px 10px" data-action="logout">Đăng xuất</button>
+    </div>
+  </div>
+
+  <div class="app-layout">
+    <!-- NAV SIDEBAR -->
+    <div class="nav-sb">
+      <div class="nav-brand"><span class="nav-logo">Auto<b>post</b></span><button class="theme-toggle" id="themeToggleBtn" onclick="toggleTheme()" title="Đổi giao diện" style="margin-left:auto">🌙</button></div>
+                  <nav class="nav-links">
+        <a class='nav-link' href='/'>🏠 Home</a>
+        <div class="nav-group-label nav-editor">ĐĂNG BÀI</div>
+        <a class='nav-link nav-editor' href='/admin-execution'>✍️ Tạo bài đăng</a>
+        <a class='nav-link active' href='/admin-fb-autopost'>📘 FB Autopost</a>
+        <a class='nav-link' href='/admin-tg-autopost'>✈️ TG Autopost</a>
+        <a class='nav-link' href='/admin-ig-thread-autopost'>📸 IG/Thread Autopost</a>
+        <div class="nav-group-label">THEO DÕI</div>
+        <a class='nav-link' href='/admin-jobs'>📋 Bài đăng</a>
+        <a class='nav-link nav-editor' href='/admin-stats'>📊 Thống kê</a>
+        <div class="nav-group-label">HỆ THỐNG</div>
+        <a class='nav-link nav-editor' href='/admin-pages'>📡 Page List</a>
+        <a class='nav-link nav-admin' href='/admin-users'>👥 Users</a>
+      </nav>
+    </div>
+
+  <div class="app-main">
+  <div class="main">
+    <div class="page-header">
+      <div>
+        <h1>📘 Facebook Autopost</h1>
+        <div class="sub">Quản lý hàng đợi đăng bài Facebook · n8n automation</div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-ghost btn-sm" onclick="openStatusLegend()" title="Giải thích Trạng thái & n8n">ℹ️</button>
+        <button class="btn btn-ghost btn-sm" onclick="loadAll()">↺ Làm mới</button>
+        <a class="btn btn-primary" href="/admin-execution?platform=facebook">+ Tạo bài đăng mới</a>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats" id="statsBar">
+      <div class="stat"><div class="num" id="sTotalJobs">—</div><div class="lbl">Tổng bài đăng</div></div>
+      <div class="stat blue"><div class="num" id="sPending">—</div><div class="lbl">Chờ đăng</div></div>
+      <div class="stat"><div class="num" id="sProcessing">—</div><div class="lbl">Đang xử lý</div></div>
+      <div class="stat green"><div class="num" id="sSuccess">—</div><div class="lbl">Thành công</div></div>
+      <div class="stat warn"><div class="num" id="sErrVideo">—</div><div class="lbl">Video too large</div></div>
+      <div class="stat red"><div class="num" id="sErrLink">—</div><div class="lbl">Error Link</div></div>
+    </div>
+
+    <!-- View mode: Active / Archive -->
+    <div class="filters" style="margin-bottom:8px">
+      <button class="btn btn-primary btn-sm" id="btnViewActive" onclick="setViewMode('active')">📋 Đang hoạt động</button>
+      <button class="btn btn-ghost btn-sm" id="btnViewArchive" onclick="setViewMode('archive')">📦 Lưu trữ (<span id="archiveCount">0</span>)</button>
+      <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+        <span style="font-size:12px;color:var(--muted)">Lọc ngày:</span>
+        <button class="btn btn-primary btn-sm" id="btnDateToday" onclick="setDateRange('today')">Hôm nay</button>
+        <button class="btn btn-ghost btn-sm" id="btnDate7d" onclick="setDateRange('7d')">7 ngày</button>
+        <button class="btn btn-ghost btn-sm" id="btnDateAll" onclick="setDateRange('all')">Tất cả</button>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filters">
+      <input type="text" id="fSearch" placeholder="Tìm theo trang, nội dung, TikTok URL…" oninput="applyFilters()" />
+      <select id="fStatus" onchange="applyFilters()">
+        <option value="">Tất cả trạng thái</option>
+        <option value="pending">Chờ đăng</option>
+        <option value="processing">Đang xử lý</option>
+        <option value="success">Thành công</option>
+        <option value="error_video_large">Video too large</option>
+        <option value="error_link">Error Link</option>
+        <option value="error">Lỗi khác</option>
+      </select>
+      <select id="fAction" onchange="applyFilters()">
+        <option value="">Tất cả loại</option>
+        <option value="download_video">Download video</option>
+        <option value="none">Không</option>
+      </select>
+      <select id="fPage" onchange="applyFilters()">
+        <option value="">Tất cả pages</option>
+      </select>
+    </div>
+
+    <!-- Table -->
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Ngày đăng</th>
+            <th>Page</th>
+            <th>Loại</th>
+            <th>AI</th>
+            <th>Nội dung</th>
+            <th>Trạng thái</th>
+            <th>n8n</th>
+            <th>Link bài viết</th>
+            <th style="text-align:right">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody id="jobTbody">
+          <tr><td colspan="10" style="text-align:center;padding:40px;color:var(--muted)">Đang tải…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  </div><!-- /app-main -->
+  </div><!-- /app-layout -->
+</div>
+
+<!-- ── NEW JOB MODAL ── -->
+<div class="overlay" id="jobModal" style="display:none" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalTitle">Tạo bài đăng mới</h2>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Page select -->
+      <div class="field">
+        <label>Trang Facebook *</label>
+        <select id="mPage" onchange="onPageChange()">
+          <option value="">— Chọn trang —</option>
+        </select>
+      </div>
+
+      <!-- Sys info (auto-filled) -->
+      <div class="field">
+        <label>Thông tin hệ thống (tự động)</label>
+        <div class="sys-box" id="sysBox">
+          <div class="sys-loading">Chọn trang để xem thông tin hệ thống…</div>
+        </div>
+      </div>
+
+      <!-- Date + Action type -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="field">
+          <label>Ngày đăng *</label>
+          <input type="date" id="mDate" />
+        </div>
+        <div class="field">
+          <label>Download video *</label>
+          <select id="mActionType">
+            <option value="download_video">Download video</option>
+            <option value="none">Không</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Content type -->
+      <div class="field">
+        <label>Loại nội dung</label>
+        <input type="text" id="mContentType" placeholder="Ví dụ: video, image, carousel, text…" />
+        <span class="hint">Mô tả loại media sẽ đăng</span>
+      </div>
+
+      <!-- TikTok URL -->
+      <div class="field">
+        <label>TikTok URL (nguồn video)</label>
+        <input type="url" id="mTiktokUrl" placeholder="https://www.tiktok.com/@…" />
+      </div>
+
+      <!-- Logo URL -->
+      <div class="field">
+        <label>Logo URL</label>
+        <input type="url" id="mLogoUrl" placeholder="https://…/logo.png" />
+      </div>
+
+      <!-- AI Agent toggle -->
+      <div class="field">
+        <div class="toggle-row">
+          <div>
+            <div style="font-size:13px;font-weight:500;">AI Agent</div>
+            <div class="hint" style="margin-top:2px;">Bật: AI tự viết nội dung · Tắt: nhập nội dung thủ công</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="mAiAgent" checked onchange="onAiAgentToggle()" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Content (chỉ hiện khi TẮT AI Agent — cần nhập nội dung thủ công) -->
+      <div class="field" id="mContentWrap" style="display:none">
+        <label>Nội dung</label>
+        <textarea id="mContent" rows="4" placeholder="Nhập nội dung bài đăng…"></textarea>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Huỷ</button>
+      <button class="btn btn-primary" id="btnSubmitJob" onclick="submitJob()">Tạo bài đăng</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── DETAIL MODAL ── -->
+<div class="overlay" id="detailModal" style="display:none" onclick="if(event.target===this)closeDetail()">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-header">
+      <h2>Chi tiết bài đăng</h2>
+      <button class="btn btn-ghost btn-sm" onclick="closeDetail()">✕</button>
+    </div>
+    <div class="modal-body" id="detailBody" style="gap:10px;">
+      <!-- filled dynamically -->
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeDetail()">Đóng</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── EDIT JOB MODAL ── -->
+<div class="overlay" id="editFbModal" style="display:none" onclick="if(event.target===this)closeEditFb()">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>✏️ Chỉnh sửa bài đăng</h2>
+      <button class="btn btn-ghost btn-sm" onclick="closeEditFb()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="background:#111;border:1px solid #2a2a2a;border-radius:8px;padding:10px 14px;font-size:12px;color:#666;margin-bottom:4px">
+        ℹ Bài đăng cũ → <strong style="color:#aaa">ignored</strong> · Bài đăng mới tạo với trạng thái <strong style="color:#f59e0b">pending</strong>.
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="field">
+          <label>Ngày đăng *</label>
+          <input type="date" id="eFbDate" />
+        </div>
+        <div class="field">
+          <label>Download video</label>
+          <select id="eFbActionType">
+            <option value="download_video">Download video</option>
+            <option value="none">Không</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Loại nội dung</label>
+        <input type="text" id="eFbContentType" placeholder="video, image, carousel…" />
+      </div>
+      <div class="field">
+        <label>TikTok URL</label>
+        <input type="url" id="eFbTiktokUrl" placeholder="https://www.tiktok.com/@…" />
+      </div>
+      <div class="field">
+        <label>Logo URL</label>
+        <input type="url" id="eFbLogoUrl" placeholder="https://…/logo.png" />
+      </div>
+      <div class="field">
+        <div class="toggle-row">
+          <div>
+            <div style="font-size:13px;font-weight:500;">AI Agent</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="eFbAiAgent" onchange="onEditFbAiAgentToggle()" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+      <div class="field" id="eFbContentWrap" style="display:none">
+        <label>Nội dung</label>
+        <textarea id="eFbContent" rows="4" placeholder="Nhập nội dung bài đăng…"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeEditFb()">Huỷ</button>
+      <button class="btn btn-primary" id="btnEditFbSave" onclick="doEditFb()">✏️ Lưu &amp; Tạo mới</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: Sửa n8n_status (không tạo job mới) ══ -->
+<div class="overlay" id="n8nStatusModal" style="display:none" onclick="if(event.target===this)closeN8nStatusModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>🔧 Sửa n8n_status</h2>
+      <button class="btn btn-ghost btn-sm" onclick="closeN8nStatusModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:10px 14px;border-radius:8px;border:2px solid transparent;transition:border .15s" id="n8nOpt1Label" onclick="selectN8nOpt('reset')">
+          <input type="radio" name="n8nOpt" value="reset" id="n8nOptReset" checked style="margin-top:2px;accent-color:var(--accent)" />
+          <div>
+            <div style="font-size:13px;font-weight:500;">🕐 Đặt lại chờ đăng</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">Cập nhật n8n_status → "Chờ đăng", bài đăng sẽ được xử lý lại</div>
+          </div>
+        </label>
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:10px 14px;border-radius:8px;border:2px solid transparent;transition:border .15s" id="n8nOpt2Label" onclick="selectN8nOpt('cancel')">
+          <input type="radio" name="n8nOpt" value="cancel" id="n8nOptCancel" style="margin-top:2px;accent-color:var(--danger)" />
+          <div>
+            <div style="font-size:13px;font-weight:500;color:var(--danger)">🚫 Hủy bài đăng</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">Chuyển bài đăng vào Lưu trữ (status → ignored), không thể hoàn tác</div>
+          </div>
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeN8nStatusModal()">Đóng</button>
+      <button class="btn btn-primary" id="btnSaveN8nStatus" onclick="saveN8nStatus()">✔ Xác nhận</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="/shared.js"></script>
+<script src="/auth-guard.js"></script>
+<script>
+let currentUser = null;
+let allJobs = [];
+let viewMode = "active"; // "active" | "archive" — bài đăng "ignored" được tách riêng vào Lưu trữ
+let filterDateRange = "today"; // "today" | "7d" | "all"
+let allPages = [];
+let pageMap = {};  // id -> page object
+
+// ── INIT ─────────────────────────────────────────────────────
+initAuthGuard({ page: "fb-autopost", onReady: async ({ user }) => {
+  currentUser = user;
+  await loadAll();
+}});
+
+async function loadAll() {
+  await Promise.all([loadPages(), loadJobs()]);
+  updateStats();
+  applyFilters();
+}
+
+// ── PAGES ─────────────────────────────────────────────────────
+async function loadPages() {
+  const sb = getSB();
+  const { data } = await sb
+    .from("pages")
+    .select("id,page_name,platform,page_uid,page_group,pic_email")
+    .eq("platform", "facebook")
+    .eq("is_active", true)
+    .order("page_name");
+
+  allPages = data || [];
+  pageMap = {};
+  allPages.forEach(p => pageMap[p.id] = p);
+
+  // populate filters
+  const fSel = document.getElementById("fPage");
+  fSel.innerHTML = '<option value="">Tất cả pages</option>' +
+    allPages.map(p => `<option value="${p.id}">${esc(p.page_name)}</option>`).join("");
+
+  // populate modal
+  const mSel = document.getElementById("mPage");
+  mSel.innerHTML = '<option value="">— Chọn trang —</option>' +
+    allPages.map(p => `<option value="${p.id}" data-uid="${p.page_uid||''}" data-group="${esc(p.page_group||'')}">
+      ${esc(p.page_name)}${p.page_uid ? ' · '+p.page_uid : ''}
+    </option>`).join("");
+}
+
+// ── JOBS ──────────────────────────────────────────────────────
+async function loadJobs() {
+  const sb = getSB();
+  const { data, error } = await sb.rpc("get_fb_jobs", { p_limit: 200, p_offset: 0 });
+  if (error) { console.error(error); return; }
+  allJobs = data || [];
+  updateStats();
+  applyFilters();
+}
+
+function updateStats() {
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const cutoff7d = new Date(); cutoff7d.setDate(cutoff7d.getDate() - 6); cutoff7d.setHours(0,0,0,0);
+  const active = allJobs.filter(j => {
+    if (effectiveStatus(j) === "ignored") return false;
+    if (filterDateRange !== "all" && j.input_date) {
+      if (filterDateRange === "today" && j.input_date !== todayStr) return false;
+      if (filterDateRange === "7d"    && new Date(j.input_date) < cutoff7d) return false;
+    }
+    return true;
+  });
+  const cnt = (s) => active.filter(j => effectiveStatus(j) === s).length;
+  document.getElementById("sTotalJobs").textContent   = active.length;
+  document.getElementById("sPending").textContent     = cnt("pending");
+  document.getElementById("sProcessing").textContent  = cnt("processing");
+  document.getElementById("sSuccess").textContent     = cnt("success");
+  document.getElementById("sErrVideo").textContent    = cnt("error_video_large");
+  document.getElementById("sErrLink").textContent     = cnt("error_link");
+  document.getElementById("archiveCount").textContent = allJobs.filter(j => effectiveStatus(j) === "ignored").length;
+}
+
+function setViewMode(mode) {
+  viewMode = mode;
+  document.getElementById("btnViewActive").className  = "btn btn-sm " + (mode === "active"  ? "btn-primary" : "btn-ghost");
+  document.getElementById("btnViewArchive").className = "btn btn-sm " + (mode === "archive" ? "btn-primary" : "btn-ghost");
+  applyFilters();
+}
+
+function setDateRange(range) {
+  filterDateRange = range;
+  document.getElementById("btnDateToday").className = "btn btn-sm " + (range === "today" ? "btn-primary" : "btn-ghost");
+  document.getElementById("btnDate7d").className    = "btn btn-sm " + (range === "7d"    ? "btn-primary" : "btn-ghost");
+  document.getElementById("btnDateAll").className   = "btn btn-sm " + (range === "all"   ? "btn-primary" : "btn-ghost");
+  updateStats();
+  applyFilters();
+}
+
+function applyFilters() {
+  const q    = document.getElementById("fSearch").value.toLowerCase();
+  const stat = document.getElementById("fStatus").value;
+  const act  = document.getElementById("fAction").value;
+  const pid  = document.getElementById("fPage").value;
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const cutoff7d = new Date(); cutoff7d.setDate(cutoff7d.getDate() - 6); cutoff7d.setHours(0,0,0,0);
+
+  const filtered = allJobs.filter(j => {
+    const isArchived = effectiveStatus(j) === "ignored";
+    if (viewMode === "archive" && !isArchived) return false;
+    if (viewMode === "active"  &&  isArchived) return false;
+    if (filterDateRange !== "all" && j.input_date) {
+      if (filterDateRange === "today" && j.input_date !== todayStr) return false;
+      if (filterDateRange === "7d"    && new Date(j.input_date) < cutoff7d) return false;
+    }
+    if (stat && j.status !== stat) return false;
+    if (act  && j.input_action_type !== act) return false;
+    if (pid  && j.page_id !== pid) return false;
+    if (q) {
+      const haystack = [j.page_name, j.noi_dung_chinh, j.content, j.tiktok_url, j.input_content_type]
+        .filter(Boolean).join(" ").toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
+    return true;
+  });
+  renderTable(filtered);
+}
+
+function renderTable(jobs) {
+  const tbody = document.getElementById("jobTbody");
+  if (!jobs.length) {
+    tbody.innerHTML = `<tr><td colspan="10"><div class="empty-state">
+      <div class="icon">📭</div>
+      <div>Chưa có bài đăng nào</div>
+    </div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = jobs.map((j, i) => {
+    const n8nCell = n8nBadgeHTML(j) + (j.n8n_note ? `<div style="font-size:10px;color:var(--muted);margin-top:2px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(j.n8n_note)}">${esc(j.n8n_note)}</div>` : "");
+    const canEdit = !["ignored","replaced_link"].includes(effectiveStatus(j));
+    return `
+    <tr>
+      <td style="color:var(--muted);font-size:12px">${i+1}</td>
+      <td style="white-space:nowrap">${j.input_date ? fmtDate(j.input_date) : '—'}</td>
+      <td>
+        <div style="font-weight:500;font-size:13px">${esc(j.page_name||'—')}</div>
+        ${j.sys_page_fb_id ? `<a href="https://www.facebook.com/${j.sys_page_fb_id}" target="_blank" style="font-size:11px;color:#1877f2;font-family:monospace;text-decoration:none">Xem trang ↗</a>` : ''}
+      </td>
+      <td><span class="chip chip-${j.input_action_type}">${actionLabel(j.input_action_type)}</span></td>
+      <td>${j.ai_agent ? '<span class="ai-on">AI ✓</span>' : '<span class="ai-off">—</span>'}</td>
+      <td style="max-width:220px">
+        ${j.noi_dung_chinh
+          ? `<div style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px" title="${esc(j.noi_dung_chinh)}">${esc(j.noi_dung_chinh)}</div>`
+          : (j.content
+            ? `<div style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px" title="${esc(j.content)}">${esc(j.content)}</div>`
+            : (j.tiktok_url ? `<a href="${esc(j.tiktok_url)}" target="_blank" style="font-size:11px;color:#60a5fa;font-family:monospace">TikTok ↗</a>` : (j.input_content_type ? `<span style="font-size:11px;color:var(--muted)">${esc(j.input_content_type)}</span>` : '—')))
+        }
+      </td>
+      <td>${statusBadgeHTML(j)}</td>
+      <td style="white-space:nowrap">${n8nCell}</td>
+      <td style="font-size:11px;white-space:nowrap">${j.out_link ? `<a href="${esc(j.out_link)}" target="_blank" style="color:#4ade80">Bài viết ↗</a>` : '<span style="color:var(--muted2)">—</span>'}</td>
+      <td>
+        <div class="td-actions">
+          ${canEdit ? `<button class="btn btn-ghost btn-sm" onclick="openEditFb('${j.id}')">✏️ Sửa</button>` : ''}
+          <button class="btn btn-ghost btn-sm" onclick="openN8nStatusModal('${j.id}')" title="Sửa n8n_status — không tạo bài đăng mới">🔧 n8n</button>
+          <button class="btn btn-ghost btn-sm" onclick="openDetail(${JSON.stringify(j).replace(/"/g,'&quot;')})">Chi tiết</button>
+          ${j.status === 'pending' ? `<button class="btn btn-danger btn-sm" onclick="deleteJob('${j.id}')">Xoá</button>` : ''}
+        </div>
+      </td>
+    </tr>`;
+  }).join("");
+}
+
+// ── NEW JOB MODAL ─────────────────────────────────────────────
+function openNewJobModal() {
+  // reset
+  document.getElementById("mPage").value        = "";
+  document.getElementById("mDate").value        = new Date().toISOString().split("T")[0];
+  document.getElementById("mActionType").value  = "download_video";
+  document.getElementById("mContentType").value = "";
+  document.getElementById("mTiktokUrl").value   = "";
+  document.getElementById("mLogoUrl").value     = "";
+  document.getElementById("mAiAgent").checked   = true;
+  document.getElementById("mContent").value     = "";
+  document.getElementById("sysBox").innerHTML   = '<div class="sys-loading">Chọn trang để xem thông tin hệ thống…</div>';
+  onAiAgentToggle();
+  document.getElementById("btnSubmitJob").disabled = false;
+  document.getElementById("btnSubmitJob").textContent = "Tạo bài đăng";
+  document.getElementById("modalTitle").textContent = "Tạo bài đăng mới";
+  document.getElementById("jobModal").style.display = "flex";
+}
+
+function closeModal() {
+  document.getElementById("jobModal").style.display = "none";
+}
+
+function onAiAgentToggle() {
+  document.getElementById("mContentWrap").style.display = document.getElementById("mAiAgent").checked ? "none" : "";
+}
+
+async function onPageChange() {
+  const pageId = document.getElementById("mPage").value;
+  const box = document.getElementById("sysBox");
+  if (!pageId) {
+    box.innerHTML = '<div class="sys-loading">Chọn trang để xem thông tin hệ thống…</div>';
+    return;
+  }
+  box.innerHTML = '<div class="sys-loading">Đang tải…</div>';
+
+  const sb = getSB();
+  // Fetch tokens for this page
+  const { data: tokens } = await sb
+    .from("page_tokens")
+    .select("token_name,token_type,token_value,expires_at")
+    .eq("page_id", pageId)
+    .eq("is_active", true);
+
+  const page = pageMap[pageId] || {};
+  const get = (type) => tokens?.find(t => t.token_type === type || t.token_name?.toLowerCase().includes(type))?.token_value || "";
+  const fbId    = page.page_uid || "";
+  const accTok  = get("page_token") || get("access_token") || "";
+  const apiDl   = get("api_key") || get("app_id") || "";
+
+  box.innerHTML = `
+    <div class="sys-row"><span class="sk">sys_PIC</span><span class="sv ${!page.pic_email?'empty':''}">${esc(page.pic_email||'(chưa gán)')}</span></div>
+    <div class="sys-row"><span class="sk">sys_Page group</span><span class="sv ${!page.page_group?'empty':''}">${esc(page.page_group||'(chưa có)')}</span></div>
+    <div class="sys-row"><span class="sk">sys_Email</span><span class="sv ${!currentUser?.email?'empty':''}">${esc(currentUser?.email||'(chưa có)')}</span></div>
+    <div class="sys-row"><span class="sk">sys_ID Trang FB</span><span class="sv ${!fbId?'empty':''}">${esc(fbId||'(chưa cấu hình)')}</span></div>
+    <div class="sys-row"><span class="sk">sys_Access token</span><span class="sv ${!accTok?'empty':''}">${accTok ? maskToken(accTok) : '(chưa có token)'}</span></div>
+    <div class="sys-row"><span class="sk">sys_API download</span><span class="sv ${!apiDl?'empty':''}">${apiDl ? maskToken(apiDl) : '(chưa có)'}</span></div>
+  `;
+}
+
+async function submitJob() {
+  const pageId = document.getElementById("mPage").value;
+  const date   = document.getElementById("mDate").value;
+  if (!pageId) { toast("Vui lòng chọn trang Facebook", "warn"); return; }
+  if (!date)   { toast("Vui lòng chọn ngày đăng", "warn"); return; }
+
+  const btn = document.getElementById("btnSubmitJob");
+  btn.disabled = true; btn.textContent = "Đang tạo…";
+
+  const sb = getSB();
+  const page = pageMap[pageId] || {};
+
+  // Fetch tokens
+  const { data: tokens } = await sb
+    .from("page_tokens")
+    .select("token_name,token_type,token_value")
+    .eq("page_id", pageId)
+    .eq("is_active", true);
+
+  const get = (type) => tokens?.find(t => t.token_type === type || t.token_name?.toLowerCase().includes(type))?.token_value || null;
+
+  const payload = {
+    user_id:            currentUser.id,
+    page_id:            pageId,
+    input_date:         date,
+    input_content_type: document.getElementById("mContentType").value.trim() || null,
+    content:            document.getElementById("mContent").value.trim() || null,
+    ai_agent:           document.getElementById("mAiAgent").checked,
+    input_action_type:  document.getElementById("mActionType").value,
+    tiktok_url:         document.getElementById("mTiktokUrl").value.trim() || null,
+    logo_url:           document.getElementById("mLogoUrl").value.trim() || null,
+    page_name:          page.page_name || null,
+    sys_page_group:     page.page_group || null,
+    sys_email:          currentUser.email,
+    sys_page_fb_id:     page.page_uid || null,
+    sys_access_token:   get("page_token") || get("access_token"),
+    sys_api_download:   get("api_key") || get("app_id"),
+    status:             "pending",
+  };
+
+  const { error } = await sb.from("fb_autopost_jobs").insert(payload);
+  if (error) {
+    toast("Lỗi: " + error.message, "error");
+    btn.disabled = false; btn.textContent = "Tạo bài đăng";
+    return;
+  }
+
+  toast("✅ Tạo bài đăng thành công!", "success");
+  closeModal();
+  loadJobs();
+}
+
+// ── DETAIL ────────────────────────────────────────────────────
+function openDetail(job) {
+  document.getElementById("detailBody").innerHTML = `
+    <div style="display:grid;gap:8px;">
+      <div class="detail-row"><span class="dk">Trang</span><span class="dv"><strong>${esc(job.page_name||'—')}</strong></span></div>
+      <div class="detail-row"><span class="dk">Ngày đăng</span><span class="dv">${job.input_date ? fmtDate(job.input_date) : '—'}</span></div>
+      <div class="detail-row"><span class="dk">Loại bài</span><span class="dv"><span class="chip chip-${job.input_action_type}">${actionLabel(job.input_action_type)}</span></span></div>
+      <div class="detail-row"><span class="dk">Loại nội dung</span><span class="dv">${esc(job.input_content_type||'—')}</span></div>
+      <div class="detail-row"><span class="dk">AI Agent</span><span class="dv">${job.ai_agent ? '<span class="ai-on">Bật</span>' : 'Tắt'}</span></div>
+      ${job.content ? `<div class="detail-row"><span class="dk">Nội dung</span><span class="dv" style="white-space:pre-wrap">${esc(job.content)}</span></div>` : ''}
+      <div class="detail-row"><span class="dk">TikTok URL</span><span class="dv">${job.tiktok_url ? `<a href="${job.tiktok_url}" target="_blank">${esc(job.tiktok_url)}</a>` : '—'}</span></div>
+      <div class="detail-row"><span class="dk">Logo URL</span><span class="dv">${job.logo_url ? `<a href="${job.logo_url}" target="_blank">${esc(job.logo_url)}</a>` : '—'}</span></div>
+
+      <div style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Thông tin hệ thống</div>
+      <div class="detail-row"><span class="dk">PIC</span><span class="dv">${esc(pageMap[job.page_id]?.pic_email||'—')}</span></div>
+      <div class="detail-row"><span class="dk">Page group</span><span class="dv">${esc(job.sys_page_group||'—')}</span></div>
+      <div class="detail-row"><span class="dk">Email</span><span class="dv">${esc(job.sys_email||'—')}</span></div>
+      <div class="detail-row"><span class="dk">ID Trang FB</span><span class="dv" style="font-family:monospace">${esc(job.sys_page_fb_id||'—')}</span></div>
+      <div class="detail-row"><span class="dk">Access token</span><span class="dv" style="font-family:monospace;font-size:11px">${job.sys_access_token ? maskToken(job.sys_access_token) : '—'}</span></div>
+
+      <div style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Kết quả n8n</div>
+      <div class="detail-row"><span class="dk">Trạng thái</span><span class="dv">${statusBadgeHTML(job)}</span></div>
+      ${job.n8n_status ? `<div class="detail-row"><span class="dk">n8n status</span><span class="dv">${n8nBadgeHTML(job)}</span></div>` : ''}
+      ${job.n8n_note   ? `<div class="detail-row"><span class="dk">n8n note</span><span class="dv" style="color:var(--muted)">${esc(job.n8n_note)}</span></div>` : ''}
+      ${job.error_message ? `<div class="detail-row"><span class="dk">Lỗi</span><span class="dv" style="color:var(--danger)">${esc(job.error_message)}</span></div>` : ''}
+      <div class="detail-row"><span class="dk">Nội dung chính</span><span class="dv">${esc(job.noi_dung_chinh||'—')}</span></div>
+      <div class="detail-row"><span class="dk">Link bài viết</span><span class="dv">${job.out_link ? `<a href="${job.out_link}" target="_blank">Mở bài viết ↗</a>` : '—'}</span></div>
+      <div class="detail-row"><span class="dk">Link video</span><span class="dv">${job.link_video ? `<a href="${job.link_video}" target="_blank">Xem video ↗</a>` : '—'}</span></div>
+    </div>
+  `;
+  document.getElementById("detailModal").style.display = "flex";
+}
+
+function closeDetail() {
+  document.getElementById("detailModal").style.display = "none";
+}
+
+// ── DELETE ────────────────────────────────────────────────────
+async function deleteJob(id) {
+  if (!confirm("Xoá job này?")) return;
+  const sb = getSB();
+  const { error } = await sb.from("fb_autopost_jobs").delete().eq("id", id);
+  if (error) { toast("Lỗi: " + error.message, "error"); return; }
+  toast("Đã xoá bài đăng", "success");
+  loadJobs();
+}
+
+// ── EDIT JOB ─────────────────────────────────────────────────
+let editFbJobId = null;
+
+function openEditFb(jobId) {
+  editFbJobId = jobId;
+  const j = allJobs.find(x => x.id === jobId);
+  if (!j) return;
+  document.getElementById("eFbDate").value        = j.input_date || new Date().toISOString().split("T")[0];
+  document.getElementById("eFbActionType").value  = j.input_action_type || "download_video";
+  document.getElementById("eFbContentType").value = j.input_content_type || "";
+  document.getElementById("eFbTiktokUrl").value   = j.tiktok_url || "";
+  document.getElementById("eFbLogoUrl").value     = j.logo_url || "";
+  document.getElementById("eFbAiAgent").checked   = j.ai_agent || false;
+  document.getElementById("eFbContent").value     = j.content || "";
+  onEditFbAiAgentToggle();
+  document.getElementById("btnEditFbSave").disabled = false;
+  document.getElementById("btnEditFbSave").textContent = "✏️ Lưu & Tạo mới";
+  document.getElementById("editFbModal").style.display = "flex";
+}
+function closeEditFb() { document.getElementById("editFbModal").style.display = "none"; editFbJobId = null; }
+function onEditFbAiAgentToggle() {
+  document.getElementById("eFbContentWrap").style.display = document.getElementById("eFbAiAgent").checked ? "none" : "";
+}
+
+async function doEditFb() {
+  const btn = document.getElementById("btnEditFbSave");
+  btn.disabled = true; btn.textContent = "Đang xử lý…";
+  const sb = getSB();
+  const oldJob = allJobs.find(x => x.id === editFbJobId);
+  if (!oldJob) { toast("Không tìm thấy bài đăng","error"); btn.disabled=false; btn.textContent="✏️ Lưu & Tạo mới"; return; }
+  const date = document.getElementById("eFbDate").value;
+  if (!date) { toast("Vui lòng chọn ngày đăng","warn"); btn.disabled=false; btn.textContent="✏️ Lưu & Tạo mới"; return; }
+  try {
+    const payload = {
+      user_id:            currentUser.id,
+      page_id:            oldJob.page_id,
+      page_name:          oldJob.page_name,
+      input_date:         date,
+      input_action_type:  document.getElementById("eFbActionType").value,
+      input_content_type: document.getElementById("eFbContentType").value.trim() || null,
+      content:            document.getElementById("eFbContent").value.trim() || null,
+      tiktok_url:         document.getElementById("eFbTiktokUrl").value.trim() || null,
+      logo_url:           document.getElementById("eFbLogoUrl").value.trim() || null,
+      ai_agent:           document.getElementById("eFbAiAgent").checked,
+      sys_page_group:     oldJob.sys_page_group,
+      sys_email:          currentUser.email,
+      sys_page_fb_id:     oldJob.sys_page_fb_id,
+      sys_access_token:   oldJob.sys_access_token,
+      sys_api_download:   oldJob.sys_api_download,
+      status:             "pending",
+      parent_job_id:      oldJob.id,
+    };
+    const { error: ie } = await sb.from("fb_autopost_jobs").insert(payload);
+    if (ie) throw ie;
+    const { error: ue } = await sb.from("fb_autopost_jobs").update({ status:"ignored" }).eq("id", editFbJobId);
+    if (ue) throw ue;
+    toast("✅ Bài đăng mới đã tạo · bài đăng cũ → ignored","success");
+    closeEditFb();
+    loadJobs();
+  } catch(e) {
+    toast("Lỗi: " + e.message, "error");
+  } finally {
+    btn.disabled = false; btn.textContent = "✏️ Lưu & Tạo mới";
+  }
+}
+
+// ── SỬA n8n_status (không tạo job mới) ────────────────────────
+let n8nStatusJobId = null;
+function openN8nStatusModal(jobId) {
+  n8nStatusJobId = jobId;
+  document.getElementById("n8nOptReset").checked = true;
+  selectN8nOpt("reset");
+  document.getElementById("n8nStatusModal").style.display = "flex";
+}
+function selectN8nOpt(val) {
+  document.getElementById("n8nOpt1Label").style.borderColor = val === "reset"  ? "var(--accent)" : "transparent";
+  document.getElementById("n8nOpt2Label").style.borderColor = val === "cancel" ? "var(--danger)" : "transparent";
+  document.getElementById("n8nOpt1Label").style.background  = val === "reset"  ? "var(--surface2)" : "";
+  document.getElementById("n8nOpt2Label").style.background  = val === "cancel" ? "#fff0f0" : "";
+  if (val === "reset")  document.getElementById("n8nOptReset").checked  = true;
+  if (val === "cancel") document.getElementById("n8nOptCancel").checked = true;
+  document.getElementById("btnSaveN8nStatus").className = val === "cancel"
+    ? "btn btn-danger" : "btn btn-primary";
+}
+function closeN8nStatusModal() {
+  document.getElementById("n8nStatusModal").style.display = "none";
+  n8nStatusJobId = null;
+}
+async function saveN8nStatus() {
+  const opt = document.querySelector('input[name="n8nOpt"]:checked')?.value;
+  const btn = document.getElementById("btnSaveN8nStatus");
+  btn.disabled = true; btn.textContent = "Đang lưu…";
+  const sb = getSB();
+  let error;
+  if (opt === "cancel") {
+    ({ error } = await sb.from("fb_autopost_jobs").update({ status: "ignored" }).eq("id", n8nStatusJobId));
+    if (!error) toast("🚫 Đã hủy · bài đăng chuyển vào Lưu trữ", "success");
+  } else {
+    ({ error } = await sb.from("fb_autopost_jobs").update({ n8n_status: "Chờ đăng" }).eq("id", n8nStatusJobId));
+    if (!error) toast("✅ Đã đặt lại n8n_status = Chờ đăng", "success");
+  }
+  btn.disabled = false; btn.textContent = "✔ Xác nhận";
+  if (error) return toast(error.message, "error");
+  closeN8nStatusModal();
+  loadJobs();
+}
+
+// ── HELPERS ───────────────────────────────────────────────────
+function actionLabel(a) {
+  return { download_video:"Download video", none:"Không" }[a] || a;
+}
+
+function maskToken(t) {
+  if (!t) return "";
+  return t.length > 12 ? t.substring(0,6) + "…" + t.substring(t.length-4) : t.substring(0,4) + "…";
+}
+
+function fmtDate(d) {
+  if (!d) return "—";
+  const [y,m,dy] = d.split("-");
+  return `${dy}/${m}/${y}`;
+}
+
+function fmtDateTime(d) {
+  if (!d) return "—";
+  const dt = new Date(d);
+  return `${String(dt.getDate()).padStart(2,"0")}/${String(dt.getMonth()+1).padStart(2,"0")} ${String(dt.getHours()).padStart(2,"0")}:${String(dt.getMinutes()).padStart(2,"0")}`;
+}
+
+function esc(s) {
+  if (s == null) return "";
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+let toastTimer;
+function toast(msg, type="info") {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.style.background = type === "error" ? "#2a1010" : type === "success" ? "#0a2a1a" : type === "warn" ? "#2a1a00" : "#222";
+  el.style.color = type === "error" ? "#f87171" : type === "success" ? "#4ade80" : type === "warn" ? "#fb923c" : "#e8e8e8";
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 3000);
+}
+</script>
+</body>
+</html>

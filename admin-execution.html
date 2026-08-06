@@ -1,0 +1,1554 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Autopost — Tạo bài đăng</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+  --bg:#f4f6f9; --surface:#ffffff; --surface2:#f4f6f9; --surface3:#eef1f6;
+  --border:#dde1e7; --border2:#e2e6ec; --text:#1a1d24; --text2:#374151;
+  --muted:#6b7280; --muted2:#9ca3af; --muted3:#c0c7d1;
+  --accent:#7c5cff; --accent-h:#6b4ef0;
+  --danger:#ef4444; --success:#22c55e; --warn:#f59e0b;
+  --fb:#1877f2; --x:#1da1f2; --tg:#2aabee; --ig:#e1306c;
+  --sidebar-w:248px;
+}
+    body { font-family:system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+
+    /* login */
+    .login-screen { min-height:100vh; display:flex; align-items:center; justify-content:center; }
+    .login-card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:40px; width:100%; max-width:380px; text-align:center; }
+    .login-card h2 { font-size:22px; font-weight:700; margin-bottom:6px; }
+    .login-card p  { font-size:14px; color:var(--muted); margin-bottom:28px; }
+    .btn-google { background:#fff; color:#111; width:100%; display:flex; align-items:center; justify-content:center; gap:10px; padding:11px 16px; font-size:14px; border-radius:10px; border:none; cursor:pointer; }
+
+    /* topbar */
+    .topbar { height:52px; background:var(--surface); border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 24px; gap:12px; position:sticky; top:0; z-index:100; }
+    .logo { font-weight:700; font-size:15px; letter-spacing:-.3px; }
+    .logo span { color:var(--accent); }
+    .sep { flex:1; }
+    .topbar-user { font-size:13px; color:var(--muted); display:flex; align-items:center; gap:10px; }
+    .avatar { width:28px; height:28px; border-radius:50%; background:var(--surface2); border:1px solid var(--border); overflow:hidden; display:flex; align-items:center; justify-content:center; font-size:14px; }
+
+    /* layout */
+    .main { padding:32px; max-width:960px; margin:0 auto; }
+
+    /* stepper */
+    .stepper { display:flex; align-items:center; margin-bottom:36px; }
+    .step { display:flex; align-items:center; gap:8px; }
+    .step-num { width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; border:2px solid var(--border2); color:var(--muted); background:var(--surface); flex-shrink:0; transition:all .2s; }
+    .step.active .step-num  { border-color:var(--accent); color:var(--accent); background:var(--accent-soft); }
+    .step.done   .step-num  { border-color:var(--success); color:#fff; background:var(--success); }
+    .step-label { font-size:12px; color:var(--muted); font-weight:500; white-space:nowrap; }
+    .step.active .step-label { color:var(--text); }
+    .step.done   .step-label { color:var(--success); }
+    .step-line { flex:1; height:1px; background:var(--border); margin:0 10px; min-width:16px; }
+    .step-line.done { background:var(--success); }
+
+    /* section */
+    .section-title { font-size:17px; font-weight:600; margin-bottom:6px; }
+    .section-sub   { font-size:13px; color:var(--muted); margin-bottom:24px; }
+
+    /* buttons */
+    .btn { display:inline-flex; align-items:center; gap:6px; padding:9px 18px; border-radius:8px; border:none; font-size:14px; font-weight:500; cursor:pointer; transition:background .15s,opacity .15s; }
+    .btn:disabled { opacity:.4; cursor:not-allowed; }
+    .btn-primary { background:var(--accent); color:#fff; }
+    .btn-primary:hover:not(:disabled) { background:var(--accent-h); }
+    .btn-ghost  { background:transparent; color:var(--muted); border:1px solid var(--border); }
+    .btn-ghost:hover { background:var(--surface2); color:var(--text); }
+    .btn-success { background:#15803d; color:#fff; }
+    .btn-success:hover:not(:disabled) { background:#166534; }
+    .btn-sm { padding:6px 12px; font-size:13px; }
+
+    /* ── STEP 1: Platform cards ── */
+    .plat-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:14px; margin-bottom:24px; }
+    .plat-card { background:var(--surface); border:2px solid var(--border); border-radius:14px; padding:24px 16px; cursor:pointer; transition:all .18s; text-align:center; position:relative; }
+    .plat-card:hover { border-color:var(--border2); background:var(--surface2); transform:translateY(-2px); }
+    .plat-card.selected { transform:translateY(-2px); }
+    .plat-card.facebook.selected  { border-color:var(--fb); background:rgba(24,119,242,.08); }
+    .plat-card.instagram.selected { border-color:var(--ig); background:rgba(225,48,108,.08); }
+    .plat-card.telegram.selected  { border-color:var(--tg); background:rgba(42,171,238,.08); }
+    .plat-card.x.selected         { border-color:#888; background:rgba(0,0,0,.04); }
+    .plat-card.thread.selected    { border-color:#888; background:rgba(255,255,255,.04); }
+    .plat-card.tiktok.selected    { border-color:#fe2c55; background:rgba(254,44,85,.08); }
+    .plat-card .plat-check { position:absolute; top:10px; right:10px; width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; color:#fff; opacity:0; transition:opacity .15s; }
+    .plat-card.selected .plat-check { opacity:1; }
+    .plat-card.facebook.selected  .plat-check { background:var(--fb); }
+    .plat-card.instagram.selected .plat-check { background:var(--ig); }
+    .plat-card.telegram.selected  .plat-check { background:var(--tg); }
+    .plat-card.x.selected         .plat-check { background:#555; }
+    .plat-card.thread.selected    .plat-check { background:#555; }
+    .plat-card.tiktok.selected    .plat-check { background:#fe2c55; }
+    .plat-icon { font-size:36px; margin-bottom:10px; display:block; }
+    .plat-name { font-size:14px; font-weight:600; margin-bottom:4px; }
+    .plat-meta { font-size:11px; color:var(--muted); }
+
+    /* ── STEP 2: Template cards ── */
+    .tpl-search { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:8px 12px; color:var(--text); font-size:13px; outline:none; width:100%; margin-bottom:16px; }
+    .tpl-search:focus { border-color:var(--border2); }
+    .tpl-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:12px; }
+    .tpl-card { background:var(--surface); border:2px solid var(--border); border-radius:12px; padding:18px; cursor:pointer; transition:all .15s; position:relative; }
+    .tpl-card:hover { border-color:var(--border2); background:var(--surface2); }
+    .tpl-card.selected { border-color:var(--accent); background:var(--accent-soft); }
+    .tpl-card.fb-special { border-color:#1877f230; }
+    .tpl-card.fb-special:hover { border-color:#1877f260; }
+    .tpl-card.fb-special.selected { border-color:var(--fb); background:rgba(24,119,242,.1); }
+    .tpl-card.tg-special { border-color:#2aabee30; }
+    .tpl-card.tg-special:hover { border-color:#2aabee60; }
+    .tpl-card.tg-special.selected { border-color:var(--tg); background:rgba(42,171,238,.08); }
+    .tpl-card.ig-special { border-color:#e1306c30; }
+    .tpl-card.ig-special:hover { border-color:#e1306c60; }
+    .tpl-card.ig-special.selected { border-color:var(--ig); background:rgba(225,48,108,.08); }
+    .tpl-card .check { position:absolute; top:12px; right:12px; width:20px; height:20px; border-radius:50%; background:var(--accent); display:flex; align-items:center; justify-content:center; font-size:11px; color:#fff; opacity:0; transition:opacity .15s; }
+    .tpl-card.fb-special.selected .check { background:var(--fb); }
+    .tpl-card.tg-special.selected .check { background:var(--tg); }
+    .tpl-card.selected .check { opacity:1; }
+    .tpl-plat { display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:600; padding:2px 8px; border-radius:20px; margin-bottom:10px; border:1px solid; }
+    .tpl-plat.facebook  { color:var(--fb); border-color:#1877f230; background:#1877f210; }
+    .tpl-plat.instagram { color:var(--ig); border-color:#e1306c30; background:#e1306c10; }
+    .tpl-plat.thread    { color:var(--th); border-color:#aaa3; background:#aaa1; }
+    .tpl-plat.x         { color:var(--x);  border-color:#e2e8f030; background:#e2e8f010; }
+    .tpl-plat.telegram  { color:var(--tg); border-color:#2aabee30; background:#2aabee10; }
+    .tpl-plat.tiktok    { color:#fe2c55; border-color:#fe2c5530; background:#fe2c5510; }
+    .tpl-plat.universal { color:var(--muted); border-color:var(--border); background:var(--surface2); }
+    .tpl-name { font-size:14px; font-weight:600; margin-bottom:6px; }
+    .tpl-type { font-size:11px; color:var(--muted); margin-bottom:8px; }
+    .tpl-preview { font-size:11px; color:var(--muted2); font-family:monospace; line-height:1.5; max-height:48px; overflow:hidden; white-space:pre-wrap; }
+    .tpl-vars { display:flex; flex-wrap:wrap; gap:4px; margin-top:8px; }
+    .var-tag { font-size:10px; color:var(--accent); background:var(--accent-soft); border:1px solid rgba(99,102,241,.2); border-radius:4px; padding:1px 6px; }
+
+    /* ── STEP 3: Page selection ── */
+    .page-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:10px; }
+    .page-card { background:var(--surface); border:2px solid var(--border); border-radius:10px; padding:14px 16px; cursor:pointer; transition:all .15s; display:flex; align-items:center; gap:12px; position:relative; }
+    .page-card:hover { border-color:var(--border2); background:var(--surface2); }
+    .page-card.selected { border-color:var(--accent); background:var(--accent-soft); }
+    .page-card .check { position:absolute; top:10px; right:10px; width:18px; height:18px; border-radius:50%; background:var(--accent); display:flex; align-items:center; justify-content:center; font-size:10px; color:#fff; opacity:0; transition:opacity .15s; }
+    .page-card.selected .check { opacity:1; }
+    .page-icon { font-size:22px; flex-shrink:0; }
+    .page-name { font-size:13px; font-weight:600; }
+    .page-uid  { font-size:11px; color:var(--muted); }
+    .page-group { font-size:11px; color:var(--accent); margin-top:2px; }
+    .select-bar { display:flex; align-items:center; gap:12px; margin-bottom:14px; }
+    .select-count { font-size:13px; color:var(--muted); }
+    .select-count strong { color:var(--accent); }
+
+    /* toggle */
+    .toggle { position:relative; width:40px; height:22px; cursor:pointer; flex-shrink:0; }
+    .toggle input { opacity:0; width:0; height:0; }
+    .toggle-slider { position:absolute; inset:0; background:#333; border-radius:22px; transition:.2s; }
+    .toggle-slider::before { content:""; position:absolute; height:16px; width:16px; left:3px; bottom:3px; background:#fff; border-radius:50%; transition:.2s; }
+    .toggle input:checked + .toggle-slider { background:var(--fb); }
+    .toggle input:checked + .toggle-slider::before { transform:translateX(18px); }
+    .toggle.tg input:checked + .toggle-slider { background:var(--tg); }
+    .toggle.ai input:checked + .toggle-slider { background:#2dd4bf; }
+
+    /* ── STEP 4: forms ── */
+    .form-layout { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+    .fb-info-box { background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:16px; }
+    html[data-theme="dark"] .fb-info-box { background:#0d1520; border-color:#1877f230; }
+    .fb-info-row { display:flex; justify-content:space-between; font-size:12px; padding:3px 0; }
+    .fb-info-row .fk { color:var(--muted); }
+    .fb-info-row .fv { font-family:monospace; color:#7dd3fc; }
+    .fb-info-row .fv.empty { color:#333; font-style:italic; font-family:system-ui; }
+    .toggle-row { display:flex; align-items:center; justify-content:space-between; background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:10px 14px; }
+
+    /* Generic var form */
+    .vars-layout { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+    .vars-panel h3 { font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:16px; }
+    .field { display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
+    .field label { font-size:12px; color:var(--muted); font-weight:500; }
+    .field input, .field textarea, .field select {
+      background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+      padding:9px 12px; color:var(--text); font-size:13px; outline:none; width:100%;
+    }
+    .field input:focus, .field textarea:focus, .field select:focus { border-color:var(--border2); }
+    .field textarea { resize:vertical; min-height:72px; font-family:inherit; }
+    .field .hint { font-size:11px; color:var(--muted2); }
+    .preview-pane { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:18px; min-height:200px; }
+    .preview-pane h3 { font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:12px; }
+    .preview-content { font-size:13px; line-height:1.7; white-space:pre-wrap; color:var(--text); }
+    .preview-content .var-highlight { color:var(--warn); background:rgba(245,158,11,.1); border-radius:3px; padding:0 2px; font-family:monospace; font-size:12px; }
+    .schedule-section { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:18px; margin-top:16px; }
+    .sched-row { display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+
+    /* step footer */
+    .step-footer { display:flex; align-items:center; gap:12px; margin-top:28px; padding-top:20px; border-top:1px solid var(--border); }
+    .step-footer .spacer { flex:1; }
+
+    /* ── STEP 5: Review ── */
+    .review-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px; }
+    .review-box { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:18px; }
+    .review-box-title { font-size:11px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.5px; margin-bottom:12px; }
+    .review-row { font-size:13px; display:flex; gap:8px; margin-bottom:6px; }
+    .review-row .rk { color:var(--muted); font-size:12px; flex-shrink:0; }
+    .review-row .rv { color:var(--text); font-weight:500; }
+
+    /* Result */
+    .result-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:32px; text-align:center; }
+    .result-icon { font-size:52px; margin-bottom:16px; }
+    .result-title { font-size:20px; font-weight:700; margin-bottom:8px; }
+    .result-sub { font-size:14px; color:var(--muted); margin-bottom:24px; }
+
+    /* Status badges */
+    .status-badge { display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:600; }
+    .status-pending   { background:#1a1a00; color:var(--warn); border:1px solid rgba(245,158,11,.3); }
+    .status-running   { background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; animation:pulse 1.5s infinite; }
+    html[data-theme="dark"] .status-running { background:#0d1a2a; color:#38bdf8; border-color:rgba(56,189,248,.3); }
+    .status-success   { background:#052e16; color:var(--success); border:1px solid rgba(34,197,94,.3); }
+    .status-error     { background:#1a0505; color:var(--danger); border:1px solid rgba(239,68,68,.3); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.7} }
+
+    .job-result-row { display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--border); font-size:13px; gap:12px; }
+    .job-result-row:last-child { border-bottom:none; }
+    .job-page-name { font-weight:500; }
+    .job-note { font-size:11px; color:var(--muted); margin-top:2px; }
+
+    /* toast */
+    .toast { position:fixed; bottom:24px; right:24px; background:var(--surface2); border:1px solid var(--border2); border-radius:10px; padding:12px 16px; font-size:13px; z-index:9999; display:flex; align-items:center; gap:8px; box-shadow:0 8px 24px rgba(0,0,0,.4); transform:translateY(80px); opacity:0; transition:all .25s; pointer-events:none; max-width:360px; }
+    .toast.show { transform:translateY(0); opacity:1; }
+    .toast.success { border-left:3px solid var(--success); }
+    .toast.error   { border-left:3px solid var(--danger); }
+
+    @media(max-width:700px) {
+      .main{padding:16px;}
+      .vars-layout,.review-grid,.form-layout{grid-template-columns:1fr;}
+      .stepper .step-label{display:none;}
+      .plat-grid{grid-template-columns:repeat(3,1fr);}
+    }
+
+    /* ── nav sidebar ── */
+    .nav-sb { width:196px; flex-shrink:0; background:#0d0d0d; border-right:1px solid #1e1e1e; display:flex; flex-direction:column; overflow:hidden; }
+    .nav-brand { padding:15px 14px 13px; border-bottom:1px solid #1e1e1e; }
+    .nav-logo { font-size:15px; font-weight:800; letter-spacing:-.5px; color:var(--text); }
+    .nav-logo b { color:var(--accent); }
+    .nav-links { flex:1; padding:7px 6px; overflow-y:auto; display:flex; flex-direction:column; gap:1px; }
+    .nav-link { display:flex; align-items:center; gap:7px; padding:7px 9px; border-radius:7px; text-decoration:none; color:#555; font-size:12px; transition:all .1s; white-space:nowrap; }
+    .nav-link:hover { background:#161616; color:#ccc; }
+    .nav-link.active { background:#1a1a2a; color:#a5b4fc; font-weight:500; }
+    .nav-sep { height:1px; background:#1e1e1e; margin:4px 0; }
+    body[data-role="viewer"] .nav-admin,
+    body[data-role="editor"] .nav-admin { display:none; }
+    body[data-role="viewer"] .nav-editor { display:none; }
+    .app-layout { display:flex; height:calc(100vh - 52px); overflow:hidden; }
+    .app-main { flex:1; overflow:auto; }
+  </style>
+  <link rel="stylesheet" href="/shared.css" />
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginScreen" class="login-screen" style="display:none">
+  <div class="login-card">
+    <div style="font-size:32px;margin-bottom:16px">✍️</div>
+    <h2>Autopost</h2>
+    <p>Tạo bài đăng</p>
+    <button class="btn-google" id="btnGoogleLogin">
+      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 32.5 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.7-8 19.7-20 0-1.3-.1-2.7-.1-4z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 16 19 12 24 12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 16.1 4 9.3 8.4 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-1.9 13.5-5l-6.2-5.2C29.4 35.6 26.8 36 24 36c-5.2 0-9.6-3.4-11.2-8.1L6.2 33C9.2 39.5 16 44 24 44z"/><path fill="#1976D2" d="M43.6 20H24v8h11.3c-.8 2.3-2.3 4.3-4.3 5.8l6.2 5.2C41.2 35.5 44 30.2 44 24c0-1.3-.1-2.7-.4-4z"/></svg>
+      Đăng nhập bằng Google
+    </button>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="appScreen" style="display:none">
+  <div class="topbar">
+    <div class="topbar-crumb"><span class="crumb-root">Autopost</span><span class="crumb-sep">›</span><span class="crumb-page">Đăng bài · Tạo bài đăng</span></div>
+    <div class="sep"></div>
+    <div class="topbar-user">
+      <div class="avatar" id="avatarWrap"></div>
+      <span id="topbarEmail"></span>
+      <span id="topbarRole" style="font-size:11px;font-weight:600;padding:2px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;"></span>
+        <button class="btn btn-ghost" style="font-size:12px;padding:5px 10px" data-action="logout">Đăng xuất</button>
+    </div>
+  </div>
+
+  <div class="app-layout">
+    <!-- NAV SIDEBAR -->
+    <div class="nav-sb">
+      <div class="nav-brand"><span class="nav-logo">Auto<b>post</b></span><button class="theme-toggle" id="themeToggleBtn" onclick="toggleTheme()" title="Đổi giao diện" style="margin-left:auto">🌙</button></div>
+                  <nav class="nav-links">
+        <a class='nav-link' href='/'>🏠 Home</a>
+        <div class="nav-group-label nav-editor">ĐĂNG BÀI</div>
+        <a class='nav-link nav-editor active' href='/admin-execution'>✍️ Tạo bài đăng</a>
+        <a class='nav-link' href='/admin-fb-autopost'>📘 FB Autopost</a>
+        <a class='nav-link' href='/admin-tg-autopost'>✈️ TG Autopost</a>
+        <a class='nav-link' href='/admin-ig-thread-autopost'>📸 IG/Thread Autopost</a>
+        <div class="nav-group-label">THEO DÕI</div>
+        <a class='nav-link' href='/admin-jobs'>📋 Bài đăng</a>
+        <a class='nav-link nav-editor' href='/admin-stats'>📊 Thống kê</a>
+        <div class="nav-group-label">HỆ THỐNG</div>
+        <a class='nav-link nav-editor' href='/admin-pages'>📡 Page List</a>
+        <a class='nav-link nav-admin' href='/admin-users'>👥 Users</a>
+      </nav>
+    </div>
+
+  <div class="app-main">
+  <div class="main">
+
+    <!-- Stepper -->
+    <div class="stepper" id="stepper">
+      <div class="step active" id="step-ind-1">
+        <div class="step-num">1</div>
+        <div class="step-label">Platform</div>
+      </div>
+      <div class="step-line" id="line-1"></div>
+      <div class="step" id="step-ind-2">
+        <div class="step-num">2</div>
+        <div class="step-label">Template</div>
+      </div>
+      <div class="step-line" id="line-2"></div>
+      <div class="step" id="step-ind-3">
+        <div class="step-num">3</div>
+        <div class="step-label">Chọn Page</div>
+      </div>
+      <div class="step-line" id="line-3"></div>
+      <div class="step" id="step-ind-4">
+        <div class="step-num">4</div>
+        <div class="step-label">Nhập thông tin</div>
+      </div>
+      <div class="step-line" id="line-4"></div>
+      <div class="step" id="step-ind-5">
+        <div class="step-num">5</div>
+        <div class="step-label">Xem lại &amp; Tạo</div>
+      </div>
+    </div>
+
+    <!-- ── STEP 1: Platform ── -->
+    <div id="view-1">
+      <div class="section-title">Chọn Platform</div>
+      <div class="section-sub">Chọn nền tảng bạn muốn đăng bài</div>
+      <div class="plat-grid" id="platGrid">
+        <div style="color:var(--muted);font-size:13px">⏳ Đang tải...</div>
+      </div>
+      <div class="step-footer">
+        <div class="spacer"></div>
+        <button class="btn btn-primary" id="btn1Next" onclick="goStep(2)" disabled>Tiếp theo →</button>
+      </div>
+    </div>
+
+    <!-- ── STEP 2: Template ── -->
+    <div id="view-2" style="display:none">
+      <div class="section-title">Chọn Template</div>
+      <div class="section-sub" id="tplSub">Chọn template phù hợp cho platform đã chọn</div>
+      <input class="tpl-search" id="tplSearch" placeholder="🔍 Tìm template…" oninput="renderTemplates()" />
+      <div class="tpl-grid" id="tplGrid">
+        <div style="color:var(--muted);font-size:13px">Đang tải...</div>
+      </div>
+      <div class="step-footer">
+        <button class="btn btn-ghost" onclick="goStep(1)">← Quay lại</button>
+        <div class="spacer"></div>
+        <button class="btn btn-primary" id="btn2Next" onclick="goStep(3)" disabled>Tiếp theo →</button>
+      </div>
+    </div>
+
+    <!-- ── STEP 3: Pages ── -->
+    <div id="view-3" style="display:none">
+      <div class="section-title">Chọn Page</div>
+      <div class="section-sub" id="pagesSub">Chọn 1 hoặc nhiều pages để đăng</div>
+      <div class="select-bar">
+        <span class="select-count">Đã chọn: <strong id="selCount">0</strong></span>
+        <button class="btn btn-ghost btn-sm" onclick="selectAllPages()">Chọn tất cả</button>
+        <button class="btn btn-ghost btn-sm" onclick="clearPages()">Bỏ chọn</button>
+        <select id="pagePicFilter" onchange="onPageFilterChange()" style="margin-left:auto;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-size:12px;outline:none;">
+          <option value="">👤 Tất cả PIC</option>
+        </select>
+        <select id="pageTopicFilter" onchange="onPageFilterChange()" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-size:12px;outline:none;">
+          <option value="">📂 Tất cả nhóm/topic</option>
+        </select>
+        <select id="pageSortMode" onchange="onPageFilterChange()" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-size:12px;outline:none;">
+          <option value="name">↕ Sắp xếp: A-Z</option>
+          <option value="topic">↕ Sắp xếp: Theo nhóm/topic</option>
+        </select>
+      </div>
+      <div class="page-grid" id="pageGrid"></div>
+      <div class="step-footer">
+        <button class="btn btn-ghost" onclick="goStep(2)">← Quay lại</button>
+        <div class="spacer"></div>
+        <button class="btn btn-primary" id="btn3Next" onclick="goStep(4)" disabled>Tiếp theo →</button>
+      </div>
+    </div>
+
+    <!-- ── STEP 4: Nhập thông tin ── -->
+    <div id="view-4" style="display:none">
+      <div class="section-title" id="step4Title">Nhập thông tin</div>
+      <div class="section-sub" id="step4Sub">Điền thông tin cho bài đăng</div>
+
+      <!-- FB Autopost form -->
+      <div id="fbForm" style="display:none">
+        <div class="form-layout">
+          <!-- Left: inputs -->
+          <div style="display:flex;flex-direction:column;gap:16px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+              <div class="field">
+                <label>Ngày đăng *</label>
+                <input type="date" id="fb-date" />
+              </div>
+              <div class="field">
+                <label>Loại nội dung</label>
+                <input type="text" id="fb-content-type" value="video" placeholder="video, image, carousel…" />
+              </div>
+            </div>
+            <div class="field">
+              <label>Download video *</label>
+              <select id="fb-action-type">
+                <option value="download_video">Download video</option>
+                <option value="none">Không</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>TikTok URL (nguồn video)</label>
+              <input type="url" id="fb-tiktok" placeholder="https://www.tiktok.com/@…" />
+            </div>
+            <div class="toggle-row">
+              <div>
+                <div style="font-size:13px;font-weight:500">AI Agent</div>
+                <div style="font-size:11px;color:var(--muted);margin-top:2px">Bật: AI tự viết nội dung · Tắt: nhập nội dung thủ công</div>
+              </div>
+              <label class="toggle">
+                <input type="checkbox" id="fb-ai" checked onchange="onFbAiAgentToggle()" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="field" id="fbContentWrap" style="display:none">
+              <label>Nội dung</label>
+              <textarea id="fb-content" rows="4" placeholder="Nhập nội dung bài đăng…"></textarea>
+            </div>
+          </div>
+          <!-- Right: sys info -->
+          <div>
+            <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Page đã chọn</div>
+            <div id="fbSysInfoWrap">
+              <div style="color:var(--muted);font-size:13px">Chưa chọn page nào…</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TG Autopost form -->
+      <div id="tgForm" style="display:none">
+        <div class="form-layout">
+          <!-- Left: inputs -->
+          <div style="display:flex;flex-direction:column;gap:16px;">
+            <div style="display:grid;grid-template-columns:1fr;gap:14px;">
+              <div class="field">
+                <label>Ngày giờ đăng *</label>
+                <input type="datetime-local" id="tg-datetime" />
+              </div>
+            </div>
+            <div class="toggle-row">
+              <div>
+                <div style="font-size:13px;font-weight:500">AI Agent</div>
+                <div style="font-size:11px;color:var(--muted);margin-top:2px">Dùng AI tối ưu & dịch nội dung trước khi đăng</div>
+              </div>
+              <label class="toggle ai">
+                <input type="checkbox" id="tg-ai" onchange="onTgAiAgentToggle()" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="field" id="tgContentWrap" style="display:none">
+              <label>Nội dung</label>
+              <textarea id="tg-content" rows="4" placeholder="Nội dung gốc để AI tối ưu/dịch…"></textarea>
+            </div>
+            <div class="toggle-row">
+              <div>
+                <div style="font-size:13px;font-weight:500">Dùng link default</div>
+                <div style="font-size:11px;color:var(--muted);margin-top:2px">Lấy link từ cấu hình channel/group</div>
+              </div>
+              <label class="toggle tg">
+                <input type="checkbox" id="tg-use-default" checked onchange="onTgDefaultLinkToggle()" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div id="tgLinkBackupWrap" style="display:none">
+              <div class="field">
+                <label>Link Backup *</label>
+                <input type="url" id="tg-link-backup" placeholder="https://…" />
+                <span class="hint">Link thay thế khi không dùng link default</span>
+              </div>
+            </div>
+            <div class="field">
+              <label>CTA cuối bài</label>
+              <input type="text" id="tg-cta" placeholder="VD: 👉 Xem thêm tại link dưới đây" />
+            </div>
+          </div>
+          <!-- Right: sys info -->
+          <div>
+            <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Channel đã chọn</div>
+            <div id="tgSysInfoWrap">
+              <div style="color:var(--muted);font-size:13px">Chưa chọn channel nào…</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- IG / Thread Autopost form -->
+      <div id="igThreadForm" style="display:none">
+        <div class="form-layout">
+          <!-- Left: inputs -->
+          <div style="display:flex;flex-direction:column;gap:16px;">
+            <div class="field">
+              <label>Input link gốc</label>
+              <input type="url" id="ig-video-link" placeholder="https://…" />
+              <span class="hint">Nguồn video để n8n xử lý</span>
+            </div>
+            <div class="field">
+              <label>Loại nội dung</label>
+              <select id="ig-content-type" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-size:13px;outline:none;width:100%">
+                <option value="image">🖼️ Image</option>
+                <option value="video">🎬 Video</option>
+                <option value="text">📝 Text</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Nội dung *</label>
+              <textarea id="ig-content" rows="4" placeholder="Nhập nội dung bài đăng…"></textarea>
+            </div>
+            <div class="field">
+              <label>Topic</label>
+              <input type="text" id="ig-topic" placeholder="Chủ đề / nhóm nội dung…" />
+            </div>
+            <div style="font-size:11px;color:var(--muted2);line-height:1.5">
+              ℹ Bài đăng sẽ đăng ngay, thời gian lấy theo thời điểm tạo bài.
+            </div>
+          </div>
+          <!-- Right: sys info -->
+          <div>
+            <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Page đã chọn</div>
+            <div id="igSysInfoWrap">
+              <div style="color:var(--muted);font-size:13px">Chưa chọn page nào…</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Generic template form -->
+      <div id="genericForm" style="display:none">
+        <div class="vars-layout">
+          <div>
+            <div class="vars-panel">
+              <h3>Biến template</h3>
+              <div id="varFields"></div>
+            </div>
+            <div class="schedule-section">
+              <div style="font-size:13px;font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:8px">🕐 Lên lịch đăng</div>
+              <div class="sched-row">
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+                  <input type="radio" name="schedType" value="now" checked onchange="onSchedChange()" style="accent-color:var(--accent)"> Đăng ngay
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+                  <input type="radio" name="schedType" value="later" onchange="onSchedChange()" style="accent-color:var(--accent)"> Lên lịch
+                </label>
+                <input type="datetime-local" id="schedTime" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-size:13px;outline:none;" />
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="preview-pane">
+              <h3>Preview nội dung</h3>
+              <div class="preview-content" id="previewContent"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="step-footer">
+        <button class="btn btn-ghost" onclick="goStep(3)">← Quay lại</button>
+        <div class="spacer"></div>
+        <button class="btn btn-primary" onclick="goStep(5)">Xem lại →</button>
+      </div>
+    </div>
+
+    <!-- ── STEP 5: Review & Create ── -->
+    <div id="view-5" style="display:none">
+      <div class="section-title">Xem lại &amp; Tạo</div>
+      <div class="section-sub">Kiểm tra thông tin trước khi tạo bài đăng</div>
+      <div id="reviewContent"></div>
+      <div class="step-footer">
+        <button class="btn btn-ghost" onclick="goStep(4)">← Sửa lại</button>
+        <div class="spacer"></div>
+        <button class="btn btn-success" id="btnCreate" onclick="runExecution()">
+          ✍️ Tạo <span id="runCount">0</span> bài đăng
+        </button>
+      </div>
+    </div>
+
+    <!-- ── STEP 6: Result ── -->
+    <div id="view-6" style="display:none">
+      <div class="result-card" id="resultCard"></div>
+    </div>
+
+  </div>
+  </div><!-- /app-main -->
+  </div><!-- /app-layout -->
+</div>
+
+<div class="toast" id="toast"></div>
+<script src="/shared.js"></script>
+<script src="/auth-guard.js"></script>
+<script>
+// ── Constants ─────────────────────────────────────────────────
+const PLAT_ICON  = { facebook:"📘", thread:"🧵", x:"𝕏", telegram:"✈️", instagram:"📸", tiktok:"🎵" };
+const PLAT_LABEL = { facebook:"Facebook", thread:"Threads", x:"X (Twitter)", telegram:"Telegram", instagram:"Instagram", tiktok:"TikTok" };
+const PLAT_CLASS = { facebook:"facebook", thread:"thread", x:"x", telegram:"telegram", instagram:"instagram", tiktok:"tiktok" };
+const PLAT_COLOR = { facebook:"var(--fb)", instagram:"var(--ig)", telegram:"var(--tg)", x:"#888", thread:"#888", tiktok:"#fe2c55" };
+
+// ── State ─────────────────────────────────────────────────────
+let allTemplates = [], allPages = [], allTokens = {};
+let selected = { platform: null, template: null, pages: [], vars: {}, scheduled_at: null };
+let currentStep = 1;
+
+// ── Boot ──────────────────────────────────────────────────────
+initAuthGuard({ page: "execution", onReady: () => loadData() });
+
+async function loadData() {
+  const sb = getSB();
+  const [tRes, pRes, tokRes] = await Promise.all([
+    sb.from("templates").select("*").eq("is_active", true).order("platform").order("name"),
+    sb.from("pages").select("*").eq("is_active", true).order("platform").order("page_name"),
+    sb.from("page_tokens").select("id,page_id,token_name,token_type,token_value,is_active"),
+  ]);
+  allTemplates = tRes.data ?? [];
+  allPages     = pRes.data ?? [];
+  allTokens    = {};
+  (tokRes.data ?? []).filter(t => t.is_active).forEach(t => {
+    if (!allTokens[t.page_id]) allTokens[t.page_id] = [];
+    allTokens[t.page_id].push(t);
+  });
+  renderPlatforms();
+  applyPlatformFromQuery();
+}
+
+// Cho phép trang khác (vd admin-fb-autopost) deep-link thẳng vào bước chọn
+// template bằng ?platform=facebook (hoặc danh sách "instagram,thread" cho trang
+// IG/Thread gộp 2 nền tảng) — bỏ qua bước chọn platform nếu chỉ có 1 lựa chọn.
+let platformFilter = null;
+function applyPlatformFromQuery() {
+  const raw = new URLSearchParams(location.search).get("platform");
+  if (!raw) return;
+  const plats = raw.split(",").map(s => s.trim()).filter(Boolean)
+    .filter(p => allTemplates.some(t => t.platform === p) || allPages.some(pg => pg.platform === p));
+  if (!plats.length) return;
+  platformFilter = plats;
+  if (plats.length === 1) {
+    pickPlatform(plats[0]);
+    goStep(2);
+  } else {
+    renderPlatforms();
+  }
+}
+
+// ── STEP 1: Platform ──────────────────────────────────────────
+function renderPlatforms() {
+  // Get distinct platforms from templates + pages
+  const platSet = new Set([
+    ...allTemplates.map(t => t.platform).filter(Boolean),
+    ...allPages.map(p => p.platform).filter(Boolean),
+  ]);
+  let plats = [...platSet];
+  if (platformFilter) plats = plats.filter(p => platformFilter.includes(p));
+
+  const grid = document.getElementById("platGrid");
+  if (!plats.length) {
+    grid.innerHTML = `<div style="color:var(--muted);font-size:13px">Không có dữ liệu platform nào</div>`;
+    return;
+  }
+
+  grid.innerHTML = plats.map(p => {
+    const tplCount  = allTemplates.filter(t => t.platform === p).length;
+    const pageCount = allPages.filter(pg => pg.platform === p).length;
+    const isSelected = selected.platform === p;
+    const cls = PLAT_CLASS[p] || "universal";
+    return `<div class="plat-card ${cls} ${isSelected ? "selected" : ""}" onclick="pickPlatform('${p}')">
+      <div class="plat-check">✓</div>
+      <span class="plat-icon">${PLAT_ICON[p] || "📄"}</span>
+      <div class="plat-name" style="color:${isSelected ? (PLAT_COLOR[p]||'var(--accent)') : 'var(--text)'}">${PLAT_LABEL[p] || cap(p)}</div>
+      <div class="plat-meta">${tplCount} template · ${pageCount} page</div>
+    </div>`;
+  }).join("");
+}
+
+function pickPlatform(p) {
+  selected.platform = p;
+  selected.template = null;
+  selected.pages    = [];
+  renderPlatforms();
+  document.getElementById("btn1Next").disabled = false;
+}
+
+// ── STEP 2: Template ──────────────────────────────────────────
+function renderTemplates() {
+  const q = (document.getElementById("tplSearch")?.value || "").toLowerCase();
+  const plat = selected.platform;
+
+  // Show templates for selected platform
+  let tpls = allTemplates.filter(t => {
+    if (t.platform !== plat) return false;
+    if (q && !t.name.toLowerCase().includes(q) && !(t.workflow_type||"").toLowerCase().includes(q)) return false;
+    return true;
+  });
+
+  const platLabel = PLAT_LABEL[plat] || cap(plat);
+  document.getElementById("tplSub").textContent =
+    `Chọn template cho platform ${PLAT_ICON[plat]||""} ${platLabel}`;
+
+  const grid = document.getElementById("tplGrid");
+  if (!tpls.length) {
+    grid.innerHTML = `<div style="color:var(--muted);font-size:13px;grid-column:1/-1">Không có template nào cho ${platLabel}</div>`;
+    return;
+  }
+
+  grid.innerHTML = tpls.map(t => {
+    const platClass  = PLAT_CLASS[t.platform] || "universal";
+    const isFb       = t.template_type === "fb_autopost";
+    const isTgAuto   = t.platform === "telegram";
+    const isIgThread = t.platform === "instagram" || t.platform === "thread";
+    const isSpecial  = isFb || isTgAuto || isIgThread;
+    const vs         = extractVars(t.content || "");
+    const isSelected = selected.template?.id === t.id;
+    const cardExtra  = isFb ? "fb-special" : isTgAuto ? "tg-special" : isIgThread ? "ig-special" : "";
+    return `<div class="tpl-card ${cardExtra} ${isSelected ? "selected" : ""}" onclick="pickTemplate('${t.id}')">
+      <div class="check">✓</div>
+      <div class="tpl-plat ${platClass}">${PLAT_ICON[t.platform]||"🌐"} ${t.platform||"universal"}</div>
+      <div class="tpl-name">${esc(t.name)}</div>
+      <div class="tpl-type" style="${isFb ? "color:#60a5fa" : isTgAuto ? "color:var(--tg)" : isIgThread ? "color:var(--ig)" : ""}">
+        ${isFb    ? "⚡ FB Autopost — form chuyên biệt"
+        : isTgAuto ? "✈️ TG Autopost — form chuyên biệt"
+        : isIgThread ? "📸 IG/Thread Autopost — form chuyên biệt"
+        : (t.workflow_type || "post")}
+      </div>
+      ${isSpecial
+        ? `<div class="tpl-preview" style="color:var(--muted2)">${isFb ? "Ngày · Loại bài · TikTok URL · AI Agent" : isTgAuto ? "Ngày giờ đăng · Link · CTA · AI Agent" : "Loại nội dung · Nội dung · Ảnh/Video · Hẹn giờ"}</div>`
+        : `<div class="tpl-preview">${esc((t.content||"").substring(0,120))}</div>`}
+      ${!isSpecial && vs.length ? `<div class="tpl-vars">${vs.map(v=>`<span class="var-tag">{{${v}}}</span>`).join("")}</div>` : ""}
+    </div>`;
+  }).join("");
+}
+
+function pickTemplate(id) {
+  selected.template = allTemplates.find(t => t.id === id) ?? null;
+  selected.pages    = [];
+  renderTemplates();
+  document.getElementById("btn2Next").disabled = !selected.template;
+}
+
+// ── STEP 3: Pages ─────────────────────────────────────────────
+// Suy ra "topic" của page: ưu tiên page_group nếu có, nếu không thì bỏ hậu tố
+// " _Channel"/"_Channel"/" Channel" khỏi tên page (Group + Channel cùng topic).
+function pageTopicOf(p) {
+  if (p.page_group) return p.page_group;
+  return (p.page_name || "").replace(/\s*[-_]?\s*channel\s*$/i, "").trim() || (p.page_name || "—");
+}
+
+function renderPages() {
+  const plat  = selected.platform;
+  const pages = allPages.filter(p => p.platform === plat);
+
+  document.getElementById("pagesSub").textContent =
+    `Chọn page ${PLAT_ICON[plat]||""} ${PLAT_LABEL[plat]||cap(plat)} để đăng bài`;
+
+  // Build PIC filter options (giữ lựa chọn hiện tại nếu còn hợp lệ)
+  const picSel = document.getElementById("pagePicFilter");
+  const prevPic = picSel.value;
+  const pics = [...new Set(pages.map(p => p.pic_email).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"vi"));
+  picSel.innerHTML = '<option value="">👤 Tất cả PIC</option><option value="__none__">— Chưa gán PIC —</option>' +
+    pics.map(e => `<option value="${esc(e)}">${esc(e)}</option>`).join("");
+  picSel.value = (prevPic === "__none__" || pics.includes(prevPic)) ? prevPic : "";
+
+  // Build topic filter options (giữ lựa chọn hiện tại nếu còn hợp lệ)
+  const topicSel = document.getElementById("pageTopicFilter");
+  const prevTopic = topicSel.value;
+  const topics = [...new Set(pages.map(pageTopicOf))].sort((a,b)=>a.localeCompare(b,"vi"));
+  topicSel.innerHTML = '<option value="">📂 Tất cả nhóm/topic</option>' +
+    topics.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join("");
+  topicSel.value = topics.includes(prevTopic) ? prevTopic : "";
+
+  const visible = getVisiblePages(pages);
+
+  const grid = document.getElementById("pageGrid");
+  if (!pages.length) {
+    grid.innerHTML = `<div style="color:var(--muted);font-size:13px">Không có page nào cho platform này</div>`;
+    return;
+  }
+  if (!visible.length) {
+    grid.innerHTML = `<div style="color:var(--muted);font-size:13px">Không có page nào khớp bộ lọc đã chọn</div>`;
+    updateSelCount();
+    return;
+  }
+
+  grid.innerHTML = visible.map(p => {
+    const isSelected = selected.pages.includes(p.id);
+    const isTgPage   = p.platform === "telegram";
+    const tgTypeIcon = p.tg_type === "channel" ? "📢" : "👥";
+    return `<div class="page-card ${isSelected ? "selected" : ""}" onclick="togglePage('${p.id}')">
+      <div class="check">✓</div>
+      <div class="page-icon">${isTgPage ? tgTypeIcon : (PLAT_ICON[p.platform]||"📄")}</div>
+      <div>
+        <div class="page-name">${esc(p.page_name)}</div>
+        ${isTgPage && p.tg_link ? `<div class="page-uid" style="color:var(--tg)">${trunc(p.tg_link,28)}</div>` : ""}
+        <div class="page-group">${esc(pageTopicOf(p))}</div>
+        ${p.pic_email ? `<div class="page-group" style="color:var(--muted2)">👤 ${esc(p.pic_email)}</div>` : ""}
+      </div>
+    </div>`;
+  }).join("");
+  updateSelCount();
+}
+
+// Áp dụng PIC/topic filter + sắp xếp hiện tại lên danh sách page của platform
+// đã chọn — dùng chung cho cả render lưới và "Chọn tất cả"/"Bỏ chọn" để hai
+// nút này chỉ tác động đúng các page đang hiển thị sau filter.
+function getVisiblePages(pages) {
+  const picFilter   = document.getElementById("pagePicFilter").value;
+  const topicFilter = document.getElementById("pageTopicFilter").value;
+  const sortMode    = document.getElementById("pageSortMode").value;
+
+  let visible = picFilter
+    ? pages.filter(p => picFilter === "__none__" ? !p.pic_email : p.pic_email === picFilter)
+    : pages;
+  visible = topicFilter ? visible.filter(p => pageTopicOf(p) === topicFilter) : visible;
+  visible = [...visible].sort((a,b) => sortMode === "topic"
+    ? (pageTopicOf(a).localeCompare(pageTopicOf(b),"vi") || a.page_name.localeCompare(b.page_name,"vi"))
+    : a.page_name.localeCompare(b.page_name,"vi"));
+  return visible;
+}
+
+function onPageFilterChange() {
+  renderPages();
+}
+
+function togglePage(id) {
+  const idx = selected.pages.indexOf(id);
+  if (idx >= 0) selected.pages.splice(idx, 1);
+  else selected.pages.push(id);
+  renderPages();
+}
+function selectAllPages() {
+  const pages  = allPages.filter(p => p.platform === selected.platform);
+  const visIds = getVisiblePages(pages).map(p => p.id);
+  selected.pages = [...new Set([...selected.pages, ...visIds])];
+  renderPages();
+}
+function clearPages() {
+  const pages  = allPages.filter(p => p.platform === selected.platform);
+  const visIds = new Set(getVisiblePages(pages).map(p => p.id));
+  selected.pages = selected.pages.filter(id => !visIds.has(id));
+  renderPages();
+}
+function updateSelCount() {
+  document.getElementById("selCount").textContent = selected.pages.length;
+  document.getElementById("btn3Next").disabled = selected.pages.length === 0;
+}
+
+// ── STEP 4: Form ──────────────────────────────────────────────
+function buildForm() {
+  const tpl  = selected.template;
+  const isFb = tpl?.template_type === "fb_autopost";
+  const isTg = tpl?.platform === "telegram";
+  const isIg = tpl?.platform === "instagram" || tpl?.platform === "thread";
+
+  document.getElementById("fbForm").style.display      = isFb ? "block" : "none";
+  document.getElementById("tgForm").style.display      = isTg ? "block" : "none";
+  document.getElementById("igThreadForm").style.display = isIg ? "block" : "none";
+  document.getElementById("genericForm").style.display = (!isFb && !isTg && !isIg) ? "block" : "none";
+
+  if (isIg) {
+    const platLabel = tpl.platform === "instagram" ? "📸 Instagram" : "🧵 Thread";
+    document.getElementById("step4Title").textContent = `${platLabel} Autopost`;
+    document.getElementById("step4Sub").textContent   = "Điền nội dung bài đăng. Hệ thống tự gán page đã chọn.";
+    updateIgSysInfo();
+    return;
+  }
+
+  if (isFb) {
+    document.getElementById("step4Title").textContent = "📘 Thông tin bài đăng Facebook";
+    document.getElementById("step4Sub").textContent   = "Điền thông tin bài đăng. Hệ thống tự lookup token từ pages đã chọn.";
+    if (!document.getElementById("fb-date").value)
+      document.getElementById("fb-date").value = new Date().toISOString().split("T")[0];
+    if (!document.getElementById("fb-content-type").value)
+      document.getElementById("fb-content-type").value = "video";
+    if (!document.getElementById("fb-action-type").value)
+      document.getElementById("fb-action-type").value = "download_video";
+    onFbAiAgentToggle();
+    updateFbSysInfo();
+    return;
+  }
+
+  if (isTg) {
+    document.getElementById("step4Title").textContent = "✈️ Thông tin bài đăng Telegram";
+    document.getElementById("step4Sub").textContent   = "Điền thông tin bài đăng. Hệ thống tự lookup Chat ID và token từ pages đã chọn.";
+    if (!document.getElementById("tg-datetime").value) {
+      const dt = new Date(); dt.setMinutes(dt.getMinutes() - dt.getTimezoneOffset());
+      document.getElementById("tg-datetime").value = dt.toISOString().slice(0,16);
+    }
+    onTgDefaultLinkToggle();
+    onTgAiAgentToggle();
+    updateTgSysInfo();
+    return;
+  }
+
+  document.getElementById("step4Title").textContent = "Nhập nội dung";
+  document.getElementById("step4Sub").textContent   = "Nhập giá trị cho từng biến trong template. Preview cập nhật real-time.";
+
+  const vars = extractVars(tpl?.content || "");
+  const container = document.getElementById("varFields");
+  if (!vars.length) {
+    container.innerHTML = `<div style="color:var(--muted);font-size:13px">Template này không có biến nào.</div>`;
+    renderPreview();
+    return;
+  }
+  container.innerHTML = vars.map(v => {
+    const saved  = selected.vars[v] || "";
+    const isLong = v.includes("body") || v.includes("content") || v.includes("caption");
+    return `<div class="field">
+      <label>{{${v}}} <span class="hint">${fieldHint(v)}</span></label>
+      ${isLong
+        ? `<textarea id="var-${v}" rows="3" oninput="onVarInput('${v}',this.value)" placeholder="Nhập ${v}…">${esc(saved)}</textarea>`
+        : `<input id="var-${v}" type="text" oninput="onVarInput('${v}',this.value)" value="${esc(saved)}" placeholder="Nhập ${v}…" />`
+      }
+    </div>`;
+  }).join("");
+  renderPreview();
+}
+
+function onFbAiAgentToggle() {
+  document.getElementById("fbContentWrap").style.display = document.getElementById("fb-ai").checked ? "none" : "";
+}
+
+// Hiển thị danh sách page/kênh đã chọn ở bước 4 (mọi platform) — thay cho việc
+// lookup & show token nhạy cảm của riêng page đầu tiên như trước đây.
+function renderSelectedPagesBox(wrapId, emptyMsg) {
+  const wrap = document.getElementById(wrapId);
+  const pages = allPages.filter(p => selected.pages.includes(p.id));
+  if (!pages.length) { wrap.innerHTML = `<div style="color:var(--muted);font-size:13px">${emptyMsg}</div>`; return; }
+  wrap.innerHTML = `
+    <div class="fb-info-box">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px">${pages.length} đã chọn</div>
+      ${pages.map(p => `<div style="font-size:12px;display:flex;align-items:center;gap:6px;margin-bottom:6px">${PLAT_ICON[p.platform]||"📄"} ${esc(p.page_name)}</div>`).join("")}
+    </div>`;
+}
+
+function updateFbSysInfo() { renderSelectedPagesBox("fbSysInfoWrap", "Chưa chọn page nào…"); }
+function updateIgSysInfo() { renderSelectedPagesBox("igSysInfoWrap", "Chưa chọn page nào…"); }
+
+function onTgDefaultLinkToggle() {
+  const useDefault = document.getElementById("tg-use-default").checked;
+  document.getElementById("tgLinkBackupWrap").style.display = useDefault ? "none" : "block";
+}
+
+function onTgAiAgentToggle() {
+  document.getElementById("tgContentWrap").style.display = document.getElementById("tg-ai").checked ? "" : "none";
+}
+
+function updateTgSysInfo() { renderSelectedPagesBox("tgSysInfoWrap", "Chưa chọn channel nào…"); }
+
+function onVarInput(key, val) {
+  selected.vars[key] = val;
+  renderPreview();
+}
+function renderPreview() {
+  const tpl = selected.template;
+  if (!tpl) return;
+  let content = tpl.content || "";
+  extractVars(content).forEach(v => {
+    if (selected.vars[v]) content = content.replaceAll(`{{${v}}}`, selected.vars[v]);
+  });
+  content = esc(content).replace(/\{\{(\w+)\}\}/g, '<span class="var-highlight">{{$1}}</span>');
+  document.getElementById("previewContent").innerHTML = content;
+}
+function onSchedChange() {
+  const val = document.querySelector('input[name="schedType"]:checked')?.value;
+  const ti  = document.getElementById("schedTime");
+  ti.style.display = val === "later" ? "block" : "none";
+  selected.scheduled_at = val === "now" ? null : ti.value || null;
+}
+
+// ── STEP 5: Review ────────────────────────────────────────────
+function buildReview() {
+  const tpl      = selected.template;
+  const isFb     = tpl?.template_type === "fb_autopost";
+  const isTg     = tpl?.platform === "telegram";
+  const isIg     = tpl?.platform === "instagram" || tpl?.platform === "thread";
+  const selPages = allPages.filter(p => selected.pages.includes(p.id));
+  // Luôn khôi phục nút Tạo (đề phòng lần submit trước đã disable/đổi nội dung nút
+  // và phá mất <span id="runCount"> bên trong — không được giả định nó còn tồn tại).
+  const btnCreateEl = document.getElementById("btnCreate");
+  btnCreateEl.disabled = false;
+  btnCreateEl.innerHTML = `✍️ Tạo <span id="runCount">${selPages.length}</span> bài đăng`;
+
+  if (isIg) {
+    const content   = document.getElementById("ig-content").value;
+    const topic     = document.getElementById("ig-topic").value;
+    const videoLink = document.getElementById("ig-video-link").value;
+    const platLabel = tpl.platform === "instagram" ? "📸 Instagram" : "🧵 Thread";
+    document.getElementById("btnCreate").innerHTML = `✍️ Tạo <span id="runCount">${selPages.length}</span> bài đăng`;
+    document.getElementById("reviewContent").innerHTML = `
+      <div class="review-grid">
+        <div class="review-box" style="border-color:#e1306c30">
+          <div class="review-box-title" style="color:var(--ig)">${platLabel} Autopost</div>
+          ${content ? `<div class="review-row"><span class="rk">Nội dung:</span><span class="rv">${esc(trunc(content,80))}</span></div>` : ""}
+          ${topic ? `<div class="review-row"><span class="rk">Topic:</span><span class="rv">${esc(topic)}</span></div>` : ""}
+          ${videoLink ? `<div class="review-row"><span class="rk">Input link gốc:</span><span class="rv" style="color:var(--ig);font-size:12px">${trunc(videoLink,40)}</span></div>` : ""}
+          <div class="review-row"><span class="rk">Loại nội dung:</span><span class="rv">${esc(document.getElementById("ig-content-type").value)}</span></div>
+          <div class="review-row"><span class="rk">Đăng:</span><span class="rv">Ngay khi tạo</span></div>
+          <div class="review-row"><span class="rk">Template:</span><span class="rv">${esc(tpl.name)}</span></div>
+        </div>
+        <div class="review-box">
+          <div class="review-box-title">Pages (${selPages.length})</div>
+          ${selPages.map(p=>`<div style="font-size:12px;display:flex;align-items:center;gap:6px;margin-bottom:8px">${PLAT_ICON[p.platform]||""} ${esc(p.page_name)}</div>`).join("")}
+          <div style="margin-top:10px;font-size:11px;color:var(--muted)">→ Sẽ tạo ${selPages.length} bài đăng vào ig_thread_autopost_jobs với trạng thái <strong style="color:var(--warn)">pending</strong>. Nội dung &amp; ảnh do n8n trả về sau.</div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  if (isTg) {
+    const tgDt       = document.getElementById("tg-datetime").value;
+    const content    = document.getElementById("tg-content").value;
+    const useDefault = document.getElementById("tg-use-default").checked;
+    const linkBackup = document.getElementById("tg-link-backup").value;
+    const ctaText    = document.getElementById("tg-cta").value;
+    const aiAgent    = document.getElementById("tg-ai").checked;
+    const dtDisplay  = tgDt ? new Date(tgDt).toLocaleString("vi-VN",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}) : "—";
+    document.getElementById("btnCreate").innerHTML = `✍️ Tạo <span id="runCount">${selPages.length}</span> bài đăng`;
+    document.getElementById("reviewContent").innerHTML = `
+      <div class="review-grid">
+        <div class="review-box" style="border-color:#2aabee30">
+          <div class="review-box-title" style="color:var(--tg)">✈️ Telegram Autopost</div>
+          <div class="review-row"><span class="rk">Ngày giờ đăng:</span><span class="rv">${dtDisplay}</span></div>
+          ${content ? `<div class="review-row"><span class="rk">Nội dung:</span><span class="rv">${esc(trunc(content,80))}</span></div>` : ""}
+          <div class="review-row"><span class="rk">Link:</span><span class="rv" style="color:var(--tg);font-size:12px">${useDefault ? '🔗 Dùng link default' : esc(trunc(linkBackup||'—',40))}</span></div>
+          ${ctaText ? `<div class="review-row"><span class="rk">CTA:</span><span class="rv">${esc(ctaText)}</span></div>` : ""}
+          <div class="review-row"><span class="rk">AI Agent:</span><span class="rv" style="color:${aiAgent?'#2dd4bf':'var(--muted)'}">${aiAgent?"Bật":"Tắt"}</span></div>
+          <div class="review-row"><span class="rk">Template:</span><span class="rv">${esc(tpl.name)}</span></div>
+        </div>
+        <div class="review-box">
+          <div class="review-box-title">Channels (${selPages.length})</div>
+          ${selPages.map(p => {
+            const tokens   = allTokens[p.id] ?? [];
+            const hasToken = tokens.some(t => t.token_type === "bot_token" || (t.token_name||"").toLowerCase().includes("bot"));
+            return `<div style="font-size:12px;display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+              <span>${p.tg_type==='channel'?'📢':'👥'} ${esc(p.page_name)}</span>
+              ${hasToken
+                ? '<span style="color:var(--success);font-size:11px">✓ bot token</span>'
+                : '<span style="color:var(--danger);font-size:11px">⚠ no token</span>'}
+            </div>`;
+          }).join("")}
+          <div style="margin-top:10px;font-size:11px;color:var(--muted)">→ Sẽ tạo ${selPages.length} bài đăng vào tg_autopost_jobs với trạng thái <strong style="color:var(--warn)">pending</strong></div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  if (isFb) {
+    const actionVal   = document.getElementById("fb-action-type").value || "download_video";
+    const actionLabel = { download_video:"Download video", none:"Không" }[actionVal] ?? actionVal;
+    const fbDate      = document.getElementById("fb-date").value;
+    const fbCtype     = document.getElementById("fb-content-type").value;
+    const fbTiktok    = document.getElementById("fb-tiktok").value;
+    const fbAi        = document.getElementById("fb-ai").checked;
+    const fbContent   = document.getElementById("fb-content").value;
+    document.getElementById("btnCreate").innerHTML = `✍️ Tạo <span id="runCount">${selPages.length}</span> bài đăng`;
+    document.getElementById("reviewContent").innerHTML = `
+      <div class="review-grid">
+        <div class="review-box" style="border-color:#1877f230">
+          <div class="review-box-title">📘 Facebook Autopost</div>
+          <div class="review-row"><span class="rk">Loại bài:</span><span class="rv">${actionLabel}</span></div>
+          <div class="review-row"><span class="rk">Ngày đăng:</span><span class="rv">${fbDate ? fbDate.split("-").reverse().join("/") : "—"}</span></div>
+          ${fbCtype ? `<div class="review-row"><span class="rk">Loại nội dung:</span><span class="rv">${esc(fbCtype)}</span></div>` : ""}
+          ${fbTiktok ? `<div class="review-row"><span class="rk">TikTok URL:</span><span class="rv" style="color:#60a5fa;font-size:12px">${trunc(fbTiktok,40)}</span></div>` : ""}
+          <div class="review-row"><span class="rk">AI Agent:</span><span class="rv" style="color:${fbAi?'#2dd4bf':'var(--muted)'}">${fbAi?"Bật":"Tắt"}</span></div>
+          ${fbAi && fbContent ? `<div class="review-row"><span class="rk">Nội dung:</span><span class="rv">${esc(trunc(fbContent,80))}</span></div>` : ""}
+          <div class="review-row"><span class="rk">Template:</span><span class="rv">${esc(tpl.name)}</span></div>
+        </div>
+        <div class="review-box">
+          <div class="review-box-title">Pages (${selPages.length})</div>
+          ${selPages.map(p => {
+            const tokens   = allTokens[p.id] ?? [];
+            const hasToken = tokens.some(t => ["page_token","access_token"].includes(t.token_type));
+            return `<div style="font-size:12px;display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+              <span>${PLAT_ICON[p.platform]||""} ${esc(p.page_name)}</span>
+              ${hasToken
+                ? '<span style="color:var(--success);font-size:11px">✓ token</span>'
+                : '<span style="color:var(--danger);font-size:11px">⚠ no token</span>'}
+            </div>`;
+          }).join("")}
+          <div style="margin-top:10px;font-size:11px;color:var(--muted)">→ Sẽ tạo ${selPages.length} bài đăng vào fb_autopost_jobs với trạng thái <strong style="color:var(--warn)">pending</strong></div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  // Generic
+  let content = tpl.content || "";
+  extractVars(content).forEach(v => { if (selected.vars[v]) content = content.replaceAll(`{{${v}}}`, selected.vars[v]); });
+  const schedType    = document.querySelector('input[name="schedType"]:checked')?.value;
+  const schedDisplay = schedType === "later" && selected.scheduled_at
+    ? `🕐 ${new Date(selected.scheduled_at).toLocaleString("vi-VN")}`
+    : "▶ Đăng ngay";
+  document.getElementById("btnCreate").innerHTML = `✍️ Tạo <span id="runCount">${selPages.length}</span> bài đăng`;
+  document.getElementById("reviewContent").innerHTML = `
+    <div class="review-grid">
+      <div class="review-box">
+        <div class="review-box-title">Template</div>
+        <div style="font-size:15px;font-weight:600;margin-bottom:4px">${esc(tpl.name)}</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:12px">${PLAT_ICON[tpl.platform]||"🌐"} ${PLAT_LABEL[tpl.platform]||cap(tpl.platform||"")} · ${tpl.workflow_type||"post"}</div>
+        ${Object.entries(selected.vars).filter(([,v])=>v).map(([k,v])=>
+          `<div style="font-size:12px;margin-top:4px"><span style="color:var(--accent)">{{${k}}}</span> = ${esc(v.substring(0,60))}${v.length>60?"…":""}</div>`
+        ).join("")||`<div style="font-size:12px;color:var(--muted2)">Không có biến</div>`}
+      </div>
+      <div class="review-box">
+        <div class="review-box-title">Thời gian &amp; Pages</div>
+        <div style="font-size:14px;font-weight:600;margin-bottom:16px">${schedDisplay}</div>
+        <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Pages (${selPages.length})</div>
+        ${selPages.map(p=>`<div style="font-size:12px;display:flex;align-items:center;gap:6px;margin-bottom:4px">${PLAT_ICON[p.platform]||"📄"} ${esc(p.page_name)}</div>`).join("")}
+        <div style="margin-top:10px;font-size:11px;color:var(--muted)">→ Trạng thái khởi tạo: <strong style="color:var(--warn)">pending</strong></div>
+      </div>
+    </div>
+    <div class="review-box" style="margin-top:0">
+      <div class="review-box-title">Nội dung preview</div>
+      <div style="font-size:13px;line-height:1.7;white-space:pre-wrap;font-family:inherit">${esc(content)}</div>
+    </div>`;
+}
+
+// ── Run / Create ──────────────────────────────────────────────
+async function runExecution() {
+  const sb  = getSB();
+  const { data: { user } } = await sb.auth.getUser();
+  const tpl      = selected.template;
+  const isFb     = tpl?.template_type === "fb_autopost";
+  const isTg     = tpl?.platform === "telegram";
+  const isIg     = tpl?.platform === "instagram" || tpl?.platform === "thread";
+  const selPages = allPages.filter(p => selected.pages.includes(p.id));
+  const btn      = document.getElementById("btnCreate");
+
+  // ── IG / Thread Autopost ──
+  if (isIg) {
+    btn.disabled = true; btn.textContent = "Đang tạo…";
+    try {
+      const content   = document.getElementById("ig-content").value.trim() || null;
+      const topic     = document.getElementById("ig-topic").value.trim() || null;
+      const videoLink = document.getElementById("ig-video-link").value.trim() || null;
+
+      const inserts = selPages.map(p => ({
+        user_id:          user.id,
+        page_id:          p.id,
+        page_name:        p.page_name || null,
+        platform:         p.platform,
+        content,
+        topic,
+        input_link_video:   videoLink,
+        input_content_type: document.getElementById("ig-content-type").value || null,
+        sys_email:          user.email,
+        status:             "pending",
+      }));
+
+      const { data: jobs, error: jobErr } = await sb.from("ig_thread_autopost_jobs").insert(inserts).select("id,page_id,status,n8n_status");
+      if (jobErr) throw jobErr;
+
+      showResultIgThread({ jobs, selPages, tpl });
+    } catch(e) {
+      toast(e.message, "error");
+      btn.disabled = false;
+      btn.innerHTML = `✍️ Tạo <span id="runCount">${selPages.length}</span> bài đăng`;
+    }
+    return;
+  }
+
+  // ── TG Autopost ──
+  if (isTg) {
+    btn.disabled = true; btn.textContent = "Đang tạo…";
+    try {
+      const tgDt       = document.getElementById("tg-datetime").value;
+      const content    = document.getElementById("tg-content").value.trim() || null;
+      const useDefault = document.getElementById("tg-use-default").checked;
+      const linkBackup = document.getElementById("tg-link-backup").value.trim() || null;
+      const ctaText    = document.getElementById("tg-cta").value.trim() || null;
+      const aiAgent    = document.getElementById("tg-ai").checked;
+
+      const inserts = selPages.map(p => {
+        const tokens = allTokens[p.id] ?? [];
+        const botToken = tokens.find(t => t.token_type === "bot_token" || (t.token_name||"").toLowerCase().includes("bot"))?.token_value || null;
+        return {
+          user_id:          user.id,
+          page_id:          p.id,
+          input_datetime:   tgDt ? new Date(tgDt).toISOString() : null,
+          content:          content,
+          use_default_link: useDefault,
+          link_backup:      useDefault ? null : linkBackup,
+          cta_text:         ctaText,
+          ai_agent:         aiAgent,
+          sys_chat_id:      p.page_uid || null,
+          sys_tg_link:      p.tg_link  || null,
+          sys_default_link: p.tg_default_link || null,
+          sys_email:        user.email,
+          status:           "pending",
+        };
+      });
+
+      const { data: jobs, error: jobErr } = await sb.from("tg_autopost_jobs").insert(inserts).select("id,page_id,status,n8n_status");
+      if (jobErr) throw jobErr;
+
+      showResultTg({ jobs, selPages, tpl });
+    } catch(e) {
+      toast(e.message, "error");
+      btn.disabled = false;
+      btn.innerHTML = `✍️ Tạo <span id="runCount">${selPages.length}</span> bài đăng`;
+    }
+    return;
+  }
+
+  // ── FB Autopost ──
+  if (isFb) {
+    btn.disabled = true; btn.textContent = "Đang tạo…";
+    try {
+      const actionType = document.getElementById("fb-action-type").value || "download_video";
+      const fbDate     = document.getElementById("fb-date").value || null;
+      const fbCtype    = document.getElementById("fb-content-type").value.trim() || null;
+      const fbTiktok   = document.getElementById("fb-tiktok").value.trim() || null;
+      const fbAi       = document.getElementById("fb-ai").checked;
+      const fbContent  = document.getElementById("fb-content").value.trim() || null;
+
+      const inserts = selPages.map(p => {
+        const tokens = allTokens[p.id] ?? [];
+        const getToken = (...types) => {
+          for (const t of types) {
+            const tok = tokens.find(tk => tk.token_type === t || (tk.token_name||"").toLowerCase().includes(t));
+            if (tok?.token_value) return tok.token_value;
+          }
+          return null;
+        };
+        const apiTokenVal = p.api_url || getToken("api_token","api_key","app_id");
+        return {
+          user_id:            user.id,
+          page_id:            p.id,
+          page_name:          p.page_name || null,
+          input_date:         fbDate,
+          input_content_type: fbCtype,
+          content:            fbContent,
+          ai_agent:           fbAi,
+          input_action_type:  actionType,
+          tiktok_url:         fbTiktok,
+          logo_url:           p.logo_link || null,
+          sys_page_group:     p.page_group || null,
+          sys_email:          user.email,
+          sys_page_fb_id:     p.page_uid || null,
+          sys_access_token:   getToken("page_token","access_token"),
+          sys_api_download:   apiTokenVal || null,
+          status:             "pending",
+        };
+      });
+
+      const { data: jobs, error: jobErr } = await sb.from("fb_autopost_jobs").insert(inserts).select("id,page_id,status,n8n_status");
+      if (jobErr) throw jobErr;
+
+      showResultFb({ jobs, selPages, tpl, actionType });
+    } catch(e) {
+      toast(e.message, "error");
+      btn.disabled = false;
+      btn.innerHTML = `✍️ Tạo <span id="runCount">${selPages.length}</span> bài đăng`;
+    }
+    return;
+  }
+
+  // ── Generic ──
+  let content = tpl.content || "";
+  extractVars(content).forEach(v => { if (selected.vars[v]) content = content.replaceAll(`{{${v}}}`, selected.vars[v]); });
+  const schedType   = document.querySelector('input[name="schedType"]:checked')?.value;
+  const scheduledAt = schedType === "later"
+    ? (document.getElementById("schedTime").value ? new Date(document.getElementById("schedTime").value).toISOString() : null)
+    : null;
+
+  btn.disabled = true; btn.textContent = "Đang tạo…";
+  try {
+    const postInserts = selPages.map(p => ({
+      user_id:      user.id,
+      page_id:      p.id,
+      template_id:  tpl.id,
+      platform:     p.platform,
+      content,
+      media_urls:   [],
+      status:       scheduledAt ? "scheduled" : "pending",
+      scheduled_at: scheduledAt,
+      metadata:     { vars: selected.vars, template_name: tpl.name },
+    }));
+    const { data: posts, error: postErr } = await sb.from("posts").insert(postInserts).select("id,platform,page_id");
+    if (postErr) throw postErr;
+
+    await sb.from("workflow_runs").insert({
+      workflow_id:   `exec_${Date.now()}`,
+      workflow_name: `${tpl.name} → ${selPages.length} pages`,
+      input_data:    { template_id: tpl.id, vars: selected.vars, page_ids: selected.pages },
+      status:        "pending",
+    });
+
+    showResult({ posts, selPages, tpl, content, scheduledAt });
+  } catch(e) {
+    toast(e.message, "error");
+    btn.disabled = false;
+    btn.innerHTML = `✍️ Tạo <span id="runCount">${selPages.length}</span> bài đăng`;
+  }
+}
+
+// ── Result screens ────────────────────────────────────────────
+function showResultIgThread({ jobs, selPages, tpl }) {
+  goView(6);
+  const jobMap = {};
+  jobs.forEach(j => { jobMap[j.page_id] = j; });
+
+  const renderRows = () => selPages.map(p => {
+    const job = jobMap[p.id];
+    const badge = statusBadgeHTML(job);
+    return `<div class="job-result-row" id="job-row-${job?.id||p.id}">
+      <div>
+        <div class="job-page-name">${PLAT_ICON[p.platform]||""} ${esc(p.page_name)}</div>
+        ${job?.n8n_note ? `<div class="job-note">${esc(job.n8n_note)}</div>` : ""}
+      </div>
+      <div id="badge-${job?.id||p.id}">${badge}</div>
+    </div>`;
+  }).join("");
+
+  document.getElementById("resultCard").innerHTML = `
+    <div class="result-icon">📸</div>
+    <div class="result-title">Đã tạo ${jobs.length} bài đăng!</div>
+    <div class="result-sub">Template <strong>${esc(tpl.name)}</strong></div>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:4px 16px;margin-bottom:20px;text-align:left" id="jobRows">
+      ${renderRows()}
+    </div>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="btn btn-primary" onclick="resetWizard()">✍️ Tạo bài đăng mới</button>
+      <a class="btn btn-ghost" href="/admin-ig-thread-autopost.html">📸 IG/Thread Autopost</a>
+    </div>`;
+
+  const jobIds = jobs.map(j => j.id);
+  startStatusPolling(jobIds, jobMap, selPages, "ig_thread_autopost_jobs");
+}
+
+function showResultFb({ jobs, selPages, tpl, actionType }) {
+  const actionLabel = { download_video:"Download video", none:"Không" }[actionType] ?? actionType;
+  goView(6);
+
+  const jobMap = {}; // pageId → job
+  jobs.forEach(j => { jobMap[j.page_id] = j; });
+
+  const renderRows = () => selPages.map(p => {
+    const job = jobMap[p.id];
+    const badge = statusBadgeHTML(job);
+    return `<div class="job-result-row" id="job-row-${job?.id||p.id}">
+      <div>
+        <div class="job-page-name">📘 ${esc(p.page_name)}</div>
+        ${job?.n8n_note ? `<div class="job-note">${esc(job.n8n_note)}</div>` : ""}
+      </div>
+      <div id="badge-${job?.id||p.id}">${badge}</div>
+    </div>`;
+  }).join("");
+
+  document.getElementById("resultCard").innerHTML = `
+    <div class="result-icon">✍️</div>
+    <div class="result-title">Đã tạo ${jobs.length} bài đăng!</div>
+    <div class="result-sub">${actionLabel} · Template <strong>${esc(tpl.name)}</strong></div>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:4px 16px;margin-bottom:20px;text-align:left" id="jobRows">
+      ${renderRows()}
+    </div>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="btn btn-primary" onclick="resetWizard()">✍️ Tạo bài đăng mới</button>
+      <a class="btn btn-ghost" href="/admin-jobs.html">📋 Xem Bài đăng</a>
+      <a class="btn btn-ghost" href="/admin-fb-autopost.html">📘 FB Autopost</a>
+    </div>`;
+
+  // Poll status every 4s
+  const jobIds = jobs.map(j => j.id);
+  startStatusPolling(jobIds, jobMap, selPages);
+}
+
+function showResultTg({ jobs, selPages, tpl }) {
+  goView(6);
+  const jobMap = {};
+  jobs.forEach(j => { jobMap[j.page_id] = j; });
+
+  const renderRows = () => selPages.map(p => {
+    const job = jobMap[p.id];
+    const badge = statusBadgeHTML(job);
+    return `<div class="job-result-row" id="job-row-${job?.id||p.id}">
+      <div>
+        <div class="job-page-name">${p.tg_type==='channel'?'📢':'👥'} ${esc(p.page_name)}</div>
+        ${job?.n8n_note ? `<div class="job-note">${esc(job.n8n_note)}</div>` : ""}
+      </div>
+      <div id="badge-${job?.id||p.id}">${badge}</div>
+    </div>`;
+  }).join("");
+
+  document.getElementById("resultCard").innerHTML = `
+    <div class="result-icon">✈️</div>
+    <div class="result-title">Đã tạo ${jobs.length} bài đăng Telegram!</div>
+    <div class="result-sub">Template <strong>${esc(tpl.name)}</strong></div>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:4px 16px;margin-bottom:20px;text-align:left" id="jobRows">
+      ${renderRows()}
+    </div>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="btn btn-primary" onclick="resetWizard()">✍️ Tạo bài đăng mới</button>
+      <a class="btn btn-ghost" href="/admin-tg-autopost.html">✈️ TG Autopost</a>
+    </div>`;
+
+  const jobIds = jobs.map(j => j.id);
+  startStatusPolling(jobIds, jobMap, selPages, "tg_autopost_jobs");
+}
+
+function showResult({ posts, selPages, tpl, content, scheduledAt }) {
+  goView(6);
+  document.getElementById("resultCard").innerHTML = `
+    <div class="result-icon">✅</div>
+    <div class="result-title">Đã tạo ${posts.length} bài đăng!</div>
+    <div class="result-sub">Template <strong>${esc(tpl.name)}</strong></div>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:4px 16px;margin-bottom:20px;text-align:left">
+      ${selPages.map(p=>`<div class="job-result-row">
+        <span>${PLAT_ICON[p.platform]||""} ${esc(p.page_name)}</span>
+        <span class="status-badge ${scheduledAt ? 'status-pending' : 'status-pending'}">
+          ${scheduledAt ? "🕐 Scheduled" : "⏳ Pending"}
+        </span>
+      </div>`).join("")}
+    </div>
+    ${scheduledAt ? `<div style="font-size:13px;color:var(--warn);margin-bottom:20px">Sẽ đăng lúc: ${new Date(scheduledAt).toLocaleString("vi-VN")}</div>` : ""}
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="btn btn-primary" onclick="resetWizard()">✍️ Tạo bài đăng mới</button>
+      <a class="btn btn-ghost" href="/admin-jobs.html">📋 Xem Bài đăng</a>
+    </div>`;
+}
+
+// ── Status polling ────────────────────────────────────────────
+function startStatusPolling(jobIds, jobMap, selPages, table = "fb_autopost_jobs") {
+  let pollCount = 0;
+  const interval = setInterval(async () => {
+    pollCount++;
+    if (pollCount > 75) { clearInterval(interval); return; } // stop after 5 min
+
+    const sb = getSB();
+    const { data } = await sb
+      .from(table)
+      .select("id,page_id,status,n8n_status,n8n_note")
+      .in("id", jobIds);
+
+    if (!data) return;
+
+    let allDone = true;
+    data.forEach(job => {
+      jobMap[job.page_id] = job;
+      const badge = document.getElementById(`badge-${job.id}`);
+      if (badge) badge.innerHTML = statusBadgeHTML(job);
+
+      const noteEl = document.querySelector(`#job-row-${job.id} .job-note`);
+      if (noteEl && job.n8n_note) noteEl.textContent = job.n8n_note;
+      else if (!noteEl && job.n8n_note) {
+        const nameEl = document.querySelector(`#job-row-${job.id} .job-page-name`);
+        if (nameEl) nameEl.insertAdjacentHTML("afterend", `<div class="job-note">${esc(job.n8n_note)}</div>`);
+      }
+
+      const eff = effectiveStatus(job);
+      const isDone = ["success","error","error_video_large","error_link"].includes(eff);
+      if (!isDone) allDone = false;
+    });
+
+    if (allDone) clearInterval(interval);
+  }, 4000);
+}
+
+// Xoá toàn bộ giá trị form còn sót lại của bài đăng trước, tránh dính nội dung cũ
+// khi bấm "Tạo bài đăng mới".
+function clearFormFields() {
+  const text = ["fb-date","fb-content-type","fb-tiktok","fb-content",
+                "tg-datetime","tg-content","tg-link-backup","tg-cta",
+                "ig-content","ig-topic","ig-video-link"];
+  text.forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
+  const igCtype = document.getElementById("ig-content-type"); if (igCtype) igCtype.value = "image";
+  const fbAction = document.getElementById("fb-action-type"); if (fbAction) fbAction.value = "download_video";
+  const fbAi = document.getElementById("fb-ai"); if (fbAi) fbAi.checked = true;
+  const tgAi = document.getElementById("tg-ai"); if (tgAi) tgAi.checked = false;
+  const tgDef = document.getElementById("tg-use-default"); if (tgDef) tgDef.checked = true;
+  if (typeof onFbAiAgentToggle === "function") onFbAiAgentToggle();
+  if (typeof onTgAiAgentToggle === "function") onTgAiAgentToggle();
+  if (typeof onTgDefaultLinkToggle === "function") onTgDefaultLinkToggle();
+}
+
+function resetWizard() {
+  // Giữ lại platform đã chọn (khỏi chọn lại nền tảng), nhưng reset template/pages/nội dung
+  // để quay về màn hình Chọn Template — bấm "← Quay lại" vẫn đổi platform được.
+  const keepPlatform = selected.platform;
+  selected = { platform: keepPlatform, template: null, pages: [], vars: {}, scheduled_at: null };
+  if (document.getElementById("tplSearch")) document.getElementById("tplSearch").value = "";
+  clearFormFields();
+  renderPlatforms();
+
+  if (keepPlatform) {
+    document.getElementById("btn1Next").disabled = false;
+    document.getElementById("btn2Next").disabled = true;
+    document.getElementById("btn3Next").disabled = true;
+    renderTemplates();
+    goStep(2);
+  } else {
+    document.getElementById("btn1Next").disabled = true;
+    document.getElementById("btn2Next").disabled = true;
+    document.getElementById("btn3Next").disabled = true;
+    goStep(1);
+  }
+}
+
+// ── Step navigation ───────────────────────────────────────────
+function goStep(n) {
+  if (n === 2) renderTemplates();
+  if (n === 3) renderPages();
+  if (n === 4) buildForm();
+  if (n === 5) buildReview();
+  currentStep = n;
+  goView(n);
+  updateStepper(n);
+}
+function goView(n) {
+  [1,2,3,4,5,6].forEach(i => {
+    document.getElementById("view-"+i).style.display = i===n ? "block" : "none";
+  });
+}
+function updateStepper(active) {
+  [1,2,3,4,5].forEach(i => {
+    const el = document.getElementById("step-ind-"+i);
+    const ln = document.getElementById("line-"+i);
+    if (!el) return;
+    el.className = "step" + (i===active?" active":i<active?" done":"");
+    el.querySelector(".step-num").textContent = i < active ? "✓" : i;
+    if (ln) ln.className = "step-line" + (i<active?" done":"");
+  });
+}
+
+// ── Utils ─────────────────────────────────────────────────────
+function extractVars(str) {
+  const m = str.match(/\{\{(\w+)\}\}/g) || [];
+  return [...new Set(m.map(x=>x.replace(/[{}]/g,"")))];
+}
+function fieldHint(v) {
+  const hints = {
+    headline:"Tiêu đề / Câu mở đầu", body:"Nội dung chính",
+    cta_link:"Link kêu gọi hành động", hashtags:"#hashtag1 #hashtag2",
+    url:"https://…", text:"Nội dung tweet", link:"Link bài viết",
+  };
+  return hints[v] ? `— ${hints[v]}` : "";
+}
+function maskToken(t) {
+  if (!t || t.length < 8) return "••••";
+  return t.slice(0,5) + "…" + t.slice(-3);
+}
+function cap(s) { return s ? s[0].toUpperCase()+s.slice(1) : s; }
+function trunc(s, n) { return s && s.length > n ? s.substring(0,n)+"…" : (s||""); }
+function esc(s) {
+  return (s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+let _tt;
+function toast(msg, type="success") {
+  const el = document.getElementById("toast");
+  el.textContent = (type==="success"?"✓  ":"✕  ")+msg;
+  el.className = `toast ${type} show`;
+  clearTimeout(_tt);
+  _tt = setTimeout(()=>el.classList.remove("show"), 3500);
+}
+</script>
+</body>
+</html>

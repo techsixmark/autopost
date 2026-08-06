@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Autopost — Thống kê</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+  --bg:#f4f6f9; --surface:#ffffff; --surface2:#f4f6f9; --surface3:#eef1f6;
+  --border:#dde1e7; --border2:#e2e6ec; --text:#1a1d24; --text2:#374151;
+  --muted:#6b7280; --muted2:#9ca3af; --muted3:#c0c7d1;
+  --accent:#7c5cff; --accent-h:#6b4ef0;
+  --danger:#ef4444; --success:#22c55e; --warn:#f59e0b;
+  --fb:#1877f2; --x:#1da1f2; --tg:#2aabee; --ig:#e1306c;
+  --sidebar-w:248px;
+}
+    html, body { height:100%; }
+    body { font-family:system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--text); }
+
+    /* ── topbar ── */
+    .topbar { height:52px; background:var(--surface); border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 20px; gap:10px; position:sticky; top:0; z-index:100; }
+    .logo { font-weight:700; font-size:15px; letter-spacing:-.3px; flex-shrink:0; }
+    .logo span { color:var(--accent); }
+    .sep { flex:1; }
+    .topbar-user { font-size:13px; color:var(--muted); display:flex; align-items:center; gap:8px; }
+    .avatar { width:28px; height:28px; border-radius:50%; background:var(--surface2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; overflow:hidden; font-size:14px; flex-shrink:0; }
+    .avatar img { width:100%; height:100%; object-fit:cover; }
+    .btn { display:inline-flex; align-items:center; gap:5px; padding:6px 12px; border-radius:7px; border:none; font-size:12px; font-weight:500; cursor:pointer; transition:background .15s; }
+    .btn-ghost { background:transparent; color:var(--muted); border:1px solid var(--border); }
+    .btn-ghost:hover { background:var(--surface2); color:var(--text); }
+    .btn-xs { padding:3px 8px; font-size:11px; }
+
+    /* ── layout ── */
+    .layout { display:flex; height:calc(100vh - 52px); }
+
+    /* ── sidebar ── */
+    .sidebar {
+      width: var(--sidebar-w); flex-shrink:0;
+      background:var(--surface); border-right:1px solid var(--border);
+      display:flex; flex-direction:column;
+      overflow-y:auto; overflow-x:hidden;
+    }
+    .sb-top { padding:18px 16px 14px; border-bottom:1px solid var(--border); }
+    .sb-title { font-size:15px; font-weight:700; }
+    .sb-sub { font-size:11px; color:var(--muted); margin-top:4px; }
+    .sb-body { padding:14px 14px; display:flex; flex-direction:column; gap:14px; }
+    .sb-label { font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.7px; color:var(--muted); margin-bottom:2px; }
+    .sb-sep { height:1px; background:var(--border); }
+
+    /* period buttons */
+    .period-grid { display:grid; grid-template-columns:1fr 1fr; gap:5px; }
+    .period-btn { padding:6px 0; border-radius:6px; font-size:12px; background:var(--surface2); border:1px solid var(--border); color:var(--muted); cursor:pointer; text-align:center; transition:all .12s; }
+    .period-btn:hover { border-color:var(--accent); color:var(--text); }
+    .period-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+
+    /* overview cards */
+    .ov-grid { display:grid; grid-template-columns:1fr 1fr; gap:5px; }
+    .ov-card { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:9px 10px; }
+    .ov-label { font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px; }
+    .ov-value { font-size:18px; font-weight:700; line-height:1; }
+    .ov-sub { font-size:9px; color:var(--muted); margin-top:3px; }
+    .ov-card.total .ov-value   { color:var(--text); }
+    .ov-card.fb    .ov-value   { color:var(--fb); }
+    .ov-card.success .ov-value { color:var(--success); }
+    .ov-card.pending .ov-value { color:var(--warn); }
+    .ov-card.error .ov-value   { color:var(--danger); }
+    .ov-card.rate  .ov-value   { color:#2dd4bf; }
+
+    /* token alerts */
+    .alert-list { display:flex; flex-direction:column; gap:5px; }
+    .alert-row { background:var(--surface2); border:1px solid var(--border); border-radius:7px; padding:8px 10px; display:flex; align-items:flex-start; gap:7px; }
+    .alert-icon { font-size:13px; flex-shrink:0; margin-top:1px; }
+    .alert-info { flex:1; min-width:0; }
+    .alert-page { font-size:11px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .alert-token { font-size:10px; color:var(--muted); margin-top:1px; }
+    .badge-expired  { font-size:9px; padding:1px 5px; border-radius:3px; background:#2a0a0a; color:var(--danger); white-space:nowrap; flex-shrink:0; font-weight:600; }
+    .badge-expiring { font-size:9px; padding:1px 5px; border-radius:3px; background:#2a1f00; color:var(--warn); white-space:nowrap; flex-shrink:0; font-weight:600; }
+
+    /* ── main content ── */
+    .content { flex:1; overflow-y:auto; overflow-x:hidden; min-width:0; }
+    .content-inner { padding:20px 24px; display:flex; flex-direction:column; gap:16px; }
+
+    /* chart cards */
+    .chart-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:18px 20px; }
+    .chart-title { font-size:13px; font-weight:600; margin-bottom:2px; }
+    .chart-sub { font-size:11px; color:var(--muted); margin-bottom:14px; }
+    .chart-row { display:grid; gap:16px; }
+    .chart-row.col2 { grid-template-columns:1fr 1fr; }
+    .chart-wrap { position:relative; }
+
+    /* horizontal bar */
+    .hbar-list { display:flex; flex-direction:column; gap:7px; }
+    .hbar-row { display:flex; align-items:center; gap:8px; font-size:12px; }
+    .hbar-label { min-width:120px; max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text); }
+    .hbar-track { flex:1; background:var(--surface2); border-radius:4px; height:7px; overflow:hidden; }
+    .hbar-fill { height:100%; border-radius:4px; background:var(--accent); transition:width .4s; }
+    .hbar-fill.fb { background:var(--fb); }
+    .hbar-count { min-width:28px; text-align:right; color:var(--muted); font-size:11px; }
+
+    /* sb select */
+    .sb-select { width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:7px; padding:6px 10px; font-size:12px; color:var(--text); cursor:pointer; }
+    .sb-select:focus { outline:none; border-color:var(--accent); }
+
+    /* loading */
+    .loading-overlay { position:fixed; inset:0; background:#0a0a0acc; display:flex; align-items:center; justify-content:center; z-index:300; font-size:14px; color:var(--muted); }
+
+    /* login */
+    .login-screen { min-height:100vh; display:flex; align-items:center; justify-content:center; }
+    .login-card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:40px; width:100%; max-width:380px; text-align:center; }
+    .login-card h2 { font-size:22px; font-weight:700; margin-bottom:6px; }
+    .login-card p { font-size:14px; color:var(--muted); margin-bottom:28px; }
+    .btn-google { background:#fff; color:#111; width:100%; display:flex; align-items:center; justify-content:center; gap:10px; padding:11px 16px; font-size:14px; border-radius:10px; border:none; cursor:pointer; }
+
+    /* ── nav sidebar ── */
+    .nav-sb { width:196px; flex-shrink:0; background:#0d0d0d; border-right:1px solid #1e1e1e; display:flex; flex-direction:column; overflow:hidden; }
+    .nav-brand { padding:15px 14px 13px; border-bottom:1px solid #1e1e1e; }
+    .nav-logo { font-size:15px; font-weight:800; letter-spacing:-.5px; color:var(--text); }
+    .nav-logo b { color:var(--accent); }
+    .nav-links { flex:1; padding:7px 6px; overflow-y:auto; display:flex; flex-direction:column; gap:1px; }
+    .nav-link { display:flex; align-items:center; gap:7px; padding:7px 9px; border-radius:7px; text-decoration:none; color:#555; font-size:12px; transition:all .1s; white-space:nowrap; }
+    .nav-link:hover { background:#161616; color:#ccc; }
+    .nav-link.active { background:#1a1a2a; color:#a5b4fc; font-weight:500; }
+    .nav-sep { height:1px; background:#1e1e1e; margin:4px 0; }
+    body[data-role="viewer"] .nav-admin,
+    body[data-role="editor"] .nav-admin { display:none; }
+    body[data-role="viewer"] .nav-editor { display:none; }
+  </style>
+  <link rel="stylesheet" href="/shared.css" />
+</head>
+<body>
+
+<div id="loginScreen" class="login-screen" style="display:none">
+  <div class="login-card">
+    <div style="font-size:36px;margin-bottom:16px">📊</div>
+    <h2>Autopost Admin</h2>
+    <p>Đăng nhập để tiếp tục</p>
+    <button class="btn-google" id="btnGoogleLogin">
+      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 32.5 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.7-8 19.7-20 0-1.3-.1-2.7-.1-4z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 16 19 12 24 12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 16.1 4 9.3 8.4 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-1.9 13.5-5l-6.2-5.2C29.4 35.6 26.8 36 24 36c-5.2 0-9.6-3.4-11.2-8.1L6.2 33C9.2 39.5 16 44 24 44z"/><path fill="#1976D2" d="M43.6 20H24v8h11.3c-.8 2.3-2.3 4.3-4.3 5.8l6.2 5.2C41.2 35.5 44 30.2 44 24c0-1.3-.1-2.7-.4-4z"/></svg>
+      Đăng nhập bằng Google
+    </button>
+  </div>
+</div>
+
+<div id="loadingOverlay" class="loading-overlay" style="display:none">⏳ Đang tải dữ liệu...</div>
+
+<div id="appScreen" style="display:none">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="topbar-crumb"><span class="crumb-root">Autopost</span><span class="crumb-sep">›</span><span class="crumb-page">Theo dõi · Thống kê</span></div>
+    <div class="sep"></div>
+    <div class="topbar-user">
+      <div class="avatar" id="avatarWrap"></div>
+      <span id="topbarEmail"></span>
+    </div>
+  </div>
+
+  <!-- LAYOUT -->
+  <div class="layout">
+
+    <!-- NAV SIDEBAR -->
+    <div class="nav-sb">
+      <div class="nav-brand"><span class="nav-logo">Auto<b>post</b></span><button class="theme-toggle" id="themeToggleBtn" onclick="toggleTheme()" title="Đổi giao diện" style="margin-left:auto">🌙</button></div>
+                  <nav class="nav-links">
+        <a class='nav-link' href='/'>🏠 Home</a>
+        <div class="nav-group-label nav-editor">ĐĂNG BÀI</div>
+        <a class='nav-link nav-editor' href='/admin-execution'>✍️ Tạo bài đăng</a>
+        <a class='nav-link' href='/admin-fb-autopost'>📘 FB Autopost</a>
+        <a class='nav-link' href='/admin-tg-autopost'>✈️ TG Autopost</a>
+        <a class='nav-link' href='/admin-ig-thread-autopost'>📸 IG/Thread Autopost</a>
+        <div class="nav-group-label">THEO DÕI</div>
+        <a class='nav-link' href='/admin-jobs'>📋 Bài đăng</a>
+        <a class='nav-link nav-editor active' href='/admin-stats'>📊 Thống kê</a>
+        <div class="nav-group-label">HỆ THỐNG</div>
+        <a class='nav-link nav-editor' href='/admin-pages'>📡 Page List</a>
+        <a class='nav-link nav-admin' href='/admin-users'>👥 Users</a>
+      </nav>
+    </div>
+
+    <!-- FILTER SIDEBAR -->
+    <div class="sidebar">
+      <div class="sb-top">
+        <div class="sb-title">📊 Thống kê</div>
+        <div class="sb-sub" id="statsSub">Đang tải...</div>
+      </div>
+
+      <div class="sb-body">
+
+        <!-- Period selector -->
+        <div>
+          <div class="sb-label">Khoảng thời gian</div>
+          <div class="period-grid">
+            <button class="period-btn" onclick="setPeriod(7,this)">7 ngày</button>
+            <button class="period-btn active" onclick="setPeriod(30,this)">30 ngày</button>
+            <button class="period-btn" onclick="setPeriod(90,this)">90 ngày</button>
+            <button class="period-btn" onclick="setPeriod(0,this)">Tất cả</button>
+          </div>
+          <button class="btn btn-ghost" onclick="loadAll()" style="font-size:12px;width:100%;justify-content:center;margin-top:8px">🔄 Refresh</button>
+          <div style="font-size:10px;color:var(--muted2);margin-top:6px;line-height:1.4">ℹ️ Danh sách bài đăng chi tiết tự xoá sau 30 ngày. Biểu đồ "Theo ngày"/"Theo trạng thái" dùng số liệu tổng hợp nên vẫn đầy đủ về lâu dài; Top Pages/Group chỉ phản ánh dữ liệu còn trong 30 ngày gần nhất.</div>
+        </div>
+
+        <div class="sb-sep"></div>
+
+        <!-- Platform filter -->
+        <div>
+          <div class="sb-label">Platform</div>
+          <div class="period-grid" id="platBtns">
+            <button class="period-btn active" style="grid-column:1/-1" onclick="setPlat('',this)">Tất cả</button>
+            <button class="period-btn" onclick="setPlat('facebook',this)">Facebook</button>
+            <button class="period-btn" onclick="setPlat('telegram',this)">Telegram</button>
+            <button class="period-btn" onclick="setPlat('instagram',this)">Instagram</button>
+            <button class="period-btn" onclick="setPlat('thread',this)">Thread</button>
+            <button class="period-btn" onclick="setPlat('x',this)">X</button>
+          </div>
+        </div>
+
+        <!-- Page dropdown -->
+        <div>
+          <div class="sb-label">Page</div>
+          <select id="pageFilter" class="sb-select" onchange="setPage(this.value)">
+            <option value="">Tất cả pages</option>
+          </select>
+        </div>
+
+        <!-- PIC dropdown -->
+        <div>
+          <div class="sb-label">PIC</div>
+          <select id="picFilter" class="sb-select" onchange="setPic(this.value)">
+            <option value="">Tất cả PIC</option>
+          </select>
+        </div>
+
+        <div class="sb-sep"></div>
+
+        <!-- Overview cards -->
+        <div>
+          <div class="sb-label">Tổng quan</div>
+          <div class="ov-grid">
+            <div class="ov-card total" style="grid-column:1/-1">
+              <div class="ov-label">Tổng jobs</div>
+              <div class="ov-value" id="ov-total">—</div>
+              <div class="ov-sub" id="ov-total-sub"></div>
+            </div>
+            <div class="ov-card fb">
+              <div class="ov-label">FB Autopost</div>
+              <div class="ov-value" id="ov-fb">—</div>
+              <div class="ov-sub" id="ov-fb-sub"></div>
+            </div>
+            <div class="ov-card rate">
+              <div class="ov-label">Success rate</div>
+              <div class="ov-value" id="ov-rate">—</div>
+              <div class="ov-sub" id="ov-rate-sub"></div>
+            </div>
+            <div class="ov-card success">
+              <div class="ov-label">Success</div>
+              <div class="ov-value" id="ov-success">—</div>
+              <div class="ov-sub" id="ov-success-sub"></div>
+            </div>
+            <div class="ov-card pending">
+              <div class="ov-label">Pending</div>
+              <div class="ov-value" id="ov-pending">—</div>
+            </div>
+            <div class="ov-card error" style="grid-column:1/-1">
+              <div class="ov-label">Error</div>
+              <div class="ov-value" id="ov-error">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sb-sep"></div>
+
+        <!-- Token alerts -->
+        <div>
+          <div class="sb-label">⚠️ Token cần chú ý</div>
+          <div id="tokenAlerts" class="alert-list">
+            <div style="color:var(--muted);font-size:12px">Đang tải...</div>
+          </div>
+        </div>
+
+      </div><!-- /sb-body -->
+    </div><!-- /sidebar -->
+
+    <!-- MAIN CONTENT -->
+    <div class="content">
+      <div class="content-inner">
+
+        <!-- Trend chart (full width) -->
+        <div class="chart-card">
+          <div class="chart-title">Bài đăng theo ngày</div>
+          <div class="chart-sub" id="trendSub">Số lượng jobs tạo mỗi ngày</div>
+          <div class="chart-wrap" style="height:200px"><canvas id="chartTrend"></canvas></div>
+        </div>
+
+        <!-- Status + Platform donuts -->
+        <div class="chart-row col2">
+          <div class="chart-card">
+            <div class="chart-title">Theo trạng thái</div>
+            <div class="chart-sub">Phân bổ status</div>
+            <div class="chart-wrap" style="height:200px"><canvas id="chartStatus"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title">Theo platform</div>
+            <div class="chart-sub">Phân bổ platform</div>
+            <div class="chart-wrap" style="height:200px"><canvas id="chartPlatform"></canvas></div>
+          </div>
+        </div>
+
+        <!-- Top pages + Groups -->
+        <div class="chart-row col2">
+          <div class="chart-card">
+            <div class="chart-title">Top 15 Pages</div>
+            <div class="chart-sub">Nhiều jobs nhất</div>
+            <div id="chartPages" class="hbar-list"></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title">Theo Group</div>
+            <div class="chart-sub">Tổng jobs theo page group</div>
+            <div id="chartGroups" class="hbar-list"></div>
+          </div>
+        </div>
+
+      </div>
+    </div><!-- /content -->
+
+  </div><!-- /layout -->
+</div><!-- /appScreen -->
+
+<script src="/shared.js"></script>
+<script src="/auth-guard.js"></script>
+<script>
+const SB_URL = "https://jhwjnnukzxbfheqatmgw.supabase.co";
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impod2pubnVrenhiZmhlcWF0bWd3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5NTI1NjMsImV4cCI6MjA5NjUyODU2M30.8XbBz2iu00-6zAymsAqgcWLkGnX0PTEz5TRRc26Uk9c";
+let sb;
+function getSB() { if (!sb) sb = supabase.createClient(SB_URL, SB_KEY); return sb; }
+
+Chart.register(ChartDataLabels);
+let allJobs = [], allTokens = [], allPages = [], allDailyStats = [];
+let period = 30;
+let charts = {};
+let filterPlatform = "", filterPage = "", filterPic = "";
+
+// Map platform filter (facebook/telegram/instagram/thread/x) -> job_type trong job_stats_daily (fb/tg/ig)
+function platformToJobType(p) {
+  if (p === "facebook") return "fb";
+  if (p === "telegram") return "tg";
+  if (p === "instagram" || p === "thread") return "ig";
+  if (p === "x") return "__none__"; // X không có agg data — trả về sentinel để loại hết
+  return null; // empty = Tất cả → include all agg
+}
+
+function chartTheme() {
+  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+  return {
+    isDark,
+    tickClr:        isDark ? "#666"    : "#9ca3af",
+    gridClr:        isDark ? "#1c1c1c" : "#eef1f6",
+    legendClr:      isDark ? "#888"    : "#6b7280",
+    doughnutBorder: isDark ? "#141414" : "#ffffff",
+  };
+}
+
+function cap(s) { return s ? s.charAt(0).toUpperCase()+s.slice(1) : ""; }
+function esc(s) { return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+// onAuthReady removed — auth-guard.js calls onReady callback directly
+
+function setPeriod(days, btn) {
+  period = days;
+  document.querySelectorAll(".period-btn:not(#platBtns .period-btn)").forEach(b=>b.classList.remove("active"));
+  btn.classList.add("active");
+  loadAll();
+}
+
+function setPlat(val, btn) {
+  filterPlatform = val;
+  filterPage = "";
+  filterPic = "";
+  document.querySelectorAll("#platBtns .period-btn").forEach(b=>b.classList.remove("active"));
+  btn.classList.add("active");
+  populatePageDropdown();
+  populatePicDropdown();
+  renderAll();
+}
+
+function setPage(val) {
+  filterPage = val;
+  renderAll();
+}
+
+function setPic(val) {
+  filterPic = val;
+  renderAll();
+}
+
+function populatePageDropdown() {
+  const base = filterPlatform ? allJobs.filter(j=>j.platform===filterPlatform) : allJobs;
+  const names = [...new Set(base.map(j=>j.page_name).filter(n=>n&&n!=="—"))].sort();
+  const sel = document.getElementById("pageFilter");
+  const cur = filterPage;
+  sel.innerHTML = `<option value="">Tất cả pages</option>` +
+    names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");
+  sel.value = (cur && names.includes(cur)) ? cur : "";
+}
+
+function populatePicDropdown() {
+  const base = filterPlatform ? allJobs.filter(j=>j.platform===filterPlatform) : allJobs;
+  const pics = [...new Set(base.map(j=>j.pic).filter(Boolean))].sort();
+  const sel = document.getElementById("picFilter");
+  const cur = filterPic;
+  sel.innerHTML = `<option value="">Tất cả PIC</option>` +
+    pics.map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join("");
+  sel.value = (cur && pics.includes(cur)) ? cur : "";
+}
+
+async function loadAll() {
+  document.getElementById("loadingOverlay").style.display = "flex";
+  const sb = getSB();
+
+  const cutoffDate = period > 0 ? new Date(Date.now() - period*864e5).toISOString() : null;
+  const pFrom = cutoffDate ? cutoffDate.slice(0,10) : null;
+
+  const [r1, r2, r3, r4, r5, r6, r7] = await Promise.all([
+    // FB / IG&Thread jobs via proven RPC — bypasses PostgREST embedded-join issues
+    sb.rpc("get_fb_jobs", { p_limit: 2000, p_offset: 0, p_from: pFrom }),
+    (() => {
+      let q = sb.from("posts")
+        .select("id,status,created_at,platform,page_id,pages(page_name,platform,page_group)")
+        .order("created_at",{ascending:false}).limit(1000);
+      if (cutoffDate) q = q.gte("created_at", cutoffDate);
+      return q;
+    })(),
+    sb.from("pages").select("id,page_name,platform,page_group,is_active,pic_email"),
+    sb.from("page_tokens").select("id,page_id,token_type,token_name,expires_at,is_active,pages(page_name,platform)").eq("is_active",true),
+    (() => {
+      let q = sb.from("tg_autopost_jobs")
+        .select("id,status,n8n_status,created_at,page_id,pages(page_name,platform,page_group)")
+        .order("created_at",{ascending:false}).limit(1000);
+      if (cutoffDate) q = q.gte("created_at", cutoffDate);
+      return q;
+    })(),
+    sb.rpc("get_ig_thread_jobs", { p_limit: 2000, p_offset: 0, p_from: pFrom }),
+    // Tổng hợp theo ngày — sống sót qua việc xoá dữ liệu thô sau 30 ngày, dùng cho trend/status chart dài hạn
+    sb.rpc("get_job_stats_daily", { p_from: null, p_to: null }),
+  ]);
+
+  if (r1.error || r2.error || r5.error || r6.error) {
+    const msg = r1.error?.message || r2.error?.message || r5.error?.message || r6.error?.message || "Lỗi không xác định";
+    document.getElementById("loadingOverlay").style.display = "none";
+    document.getElementById("statsSub").textContent = "⚠️ Lỗi: " + msg;
+    document.getElementById("statsSub").style.color = "var(--danger)";
+    console.error("r1:", r1.error, "r2:", r2.error, "r5:", r5.error, "r6:", r6.error);
+    return;
+  }
+
+  // RPC returns flat fields (page_name, platform, page_group directly on row)
+  // Normalize platform to lowercase so filterPlatform comparison always works
+  const fbNorm = (r1.data||[]).map(j=>({
+    _type:"fb", page_id:j.page_id,
+    page_name: j.page_name  ?? "—",
+    platform:  (j.platform   ?? "facebook").toLowerCase(),
+    group:     j.page_group ?? "",
+    status:    j.status, n8n_status:j.n8n_status, created_at:j.created_at,
+  }));
+  const tgNorm = (r5.data||[]).map(j=>({
+    _type:"tg", page_id:j.page_id,
+    page_name: j.pages?.page_name  ?? "—",
+    platform:  (j.pages?.platform   ?? "telegram").toLowerCase(),
+    group:     j.pages?.page_group ?? "",
+    status:    j.status, n8n_status:j.n8n_status, created_at:j.created_at,
+  }));
+  const igNorm = (r6.data||[]).map(j=>({
+    _type:"ig", page_id:j.page_id,
+    page_name: j.page_name ?? "—",
+    platform:  (j.platform  ?? "instagram").toLowerCase(),
+    group:     "",
+    status:    j.status, n8n_status:j.n8n_status, created_at:j.created_at,
+  }));
+  const postNorm = (r2.data||[]).map(p=>({
+    _type:"generic", page_id:p.page_id,
+    page_name: p.pages?.page_name ?? "—",
+    platform:  (p.pages?.platform  ?? p.platform ?? "").toLowerCase(),
+    group:     p.pages?.page_group ?? "",
+    status:    p.status, created_at:p.created_at,
+  }));
+  allJobs       = [...fbNorm, ...tgNorm, ...igNorm, ...postNorm];
+  allPages      = r3.data ?? [];
+  allTokens     = r4.data ?? [];
+  allDailyStats = r7.data ?? [];
+
+  const picByPageId = new Map(allPages.map(p => [p.id, p.pic_email || ""]));
+  allJobs.forEach(j => { j.pic = picByPageId.get(j.page_id) || ""; });
+
+  // Populate dropdowns once after data loads (NOT inside renderAll to avoid onchange re-triggers)
+  populatePageDropdown();
+  populatePicDropdown();
+
+  document.getElementById("loadingOverlay").style.display = "none";
+  renderAll();
+}
+
+function getInPeriod() {
+  let jobs = period
+    ? allJobs.filter(j => j.created_at >= new Date(Date.now() - period*864e5).toISOString())
+    : allJobs;
+  // Loại bỏ bài đăng cũ đã bị thay thế (Sửa/Retry) — chỉ là bản ghi lịch sử,
+  // không phải bài đăng thực tế, nếu tính sẽ làm tổng số bị lệch so với breakdown trạng thái.
+  jobs = jobs.filter(j => !["ignored","replaced_link"].includes(effectiveStatus(j)));
+  if (filterPlatform) jobs = jobs.filter(j => j.platform === filterPlatform);
+  if (filterPage)     jobs = jobs.filter(j => j.page_name === filterPage);
+  if (filterPic)      jobs = jobs.filter(j => j.pic === filterPic);
+  return jobs;
+}
+
+function renderAll() {
+  const jobs = getInPeriod();
+  console.log("[stats] renderAll — filterPlatform:", JSON.stringify(filterPlatform), "| filterPage:", JSON.stringify(filterPage), "| jobs:", jobs.length, "| platforms in jobs:", [...new Set(jobs.map(j=>j.platform))]);
+  const periodLabel = period ? `${period} ngày qua` : "Tất cả thời gian";
+  const platLabel = filterPlatform ? ` · ${filterPlatform}` : "";
+  const pageLabel = filterPage ? ` · ${filterPage}` : "";
+  const picLabel  = filterPic ? ` · PIC: ${filterPic}` : "";
+  document.getElementById("statsSub").textContent = `${periodLabel}${platLabel}${pageLabel}${picLabel} · ${jobs.length} jobs`;
+  document.getElementById("statsSub").style.color = "";
+  const safeRender = (fn, label) => { try { fn(); } catch(e) { console.error("renderAll error in", label, e); } };
+  safeRender(() => renderOverview(jobs), "overview");
+  safeRender(() => renderTrendChart(jobs), "trend");
+  safeRender(() => renderStatusChart(jobs), "status");
+  safeRender(() => renderPlatformChart(jobs), "platform");
+  safeRender(() => renderPagesBar(jobs), "pages");
+  safeRender(() => renderGroupsBar(jobs), "groups");
+  safeRender(() => renderTokenAlerts(), "tokens");
+}
+
+function renderOverview(jobs) {
+  const total   = jobs.length;
+  const fb      = jobs.filter(j=>j._type==="fb").length;
+  const tg      = jobs.filter(j=>j._type==="tg").length;
+  const ig      = jobs.filter(j=>j._type==="ig").length;
+  const success = jobs.filter(j=>effectiveStatus(j)==="success").length;
+  const pending = jobs.filter(j=>effectiveStatus(j)==="pending").length;
+  const error   = jobs.filter(j=>["error","error_video_large","error_link"].includes(effectiveStatus(j))).length;
+  const done    = jobs.filter(j=>["success","error","error_video_large","error_link"].includes(effectiveStatus(j))).length;
+  const rate    = done ? Math.round(success/done*100) : 0;
+  const s = id => document.getElementById(id);
+  s("ov-total").textContent    = total;
+  s("ov-fb").textContent       = fb;
+  s("ov-success").textContent  = success;
+  s("ov-pending").textContent  = pending;
+  s("ov-error").textContent    = error;
+  s("ov-rate").textContent     = rate + "%";
+  s("ov-total-sub").textContent  = `FB: ${fb} · TG: ${tg} · IG/Th: ${ig} · Generic: ${total-fb-tg-ig}`;
+  s("ov-fb-sub").textContent     = total ? `${Math.round(fb/total*100)}% tổng` : "";
+  s("ov-success-sub").textContent= done ? `trong ${done} đã xử lý` : "";
+  s("ov-rate-sub").textContent   = `${done} đã xử lý`;
+}
+
+// job_stats_daily chỉ refresh 1 lần/ngày (00:15) nên KHÔNG dùng để thay raw data —
+// chỉ dùng để bổ sung phần đã bị xoá khỏi bảng thô (>30 ngày). Luôn cộng thêm vào raw,
+// không bao giờ thay thế, để mọi filter sidebar (period/platform/page) luôn phản ánh đúng
+// dữ liệu mới nhất; agg table chỉ "vá" phần lịch sử đã mất do retention.
+function aggGapByDay() {
+  const map = {};
+  if (filterPage || filterPic) return map; // agg table không có granularity theo page/PIC
+  const jobType = platformToJobType(filterPlatform);
+  const cutoff30 = new Date(Date.now() - 30*864e5).toISOString().slice(0,10);
+  const cutoffPeriod = period > 0 ? new Date(Date.now() - period*864e5).toISOString().slice(0,10) : null;
+  allDailyStats.forEach(r => {
+    if (jobType && r.job_type !== jobType) return;
+    if (r.day >= cutoff30) return; // raw đã có rồi (chưa bị xoá) — tránh đếm trùng
+    if (cutoffPeriod && r.day < cutoffPeriod) return;
+    map[r.day] = (map[r.day]||0) + r.cnt;
+  });
+  return map;
+}
+function aggGapByStatus() {
+  const counts = {};
+  if (filterPage || filterPic) return counts;
+  const jobType = platformToJobType(filterPlatform);
+  const cutoff30 = new Date(Date.now() - 30*864e5).toISOString().slice(0,10);
+  const cutoffPeriod = period > 0 ? new Date(Date.now() - period*864e5).toISOString().slice(0,10) : null;
+  allDailyStats.forEach(r => {
+    if (jobType && r.job_type !== jobType) return;
+    if (r.day >= cutoff30) return;
+    if (cutoffPeriod && r.day < cutoffPeriod) return;
+    const k = ["error_video_large","error_link"].includes(r.status) ? "error" : r.status;
+    counts[k] = (counts[k]||0) + r.cnt;
+  });
+  return counts;
+}
+
+function renderTrendChart(jobs) {
+  const aggByDay = aggGapByDay();
+  const labels = [], data = [];
+  if (period > 0) {
+    for (let i = period-1; i >= 0; i--) {
+      const d = new Date(Date.now()-i*864e5);
+      const key = d.toISOString().slice(0,10);
+      labels.push(d.toLocaleDateString("vi-VN",{day:"2-digit",month:"2-digit"}));
+      data.push(jobs.filter(j=>j.created_at?.slice(0,10)===key).length + (aggByDay[key]||0));
+    }
+    document.getElementById("trendSub").textContent = `Số bài đăng mỗi ngày trong ${period} ngày qua`;
+  } else {
+    const byMonth = {};
+    jobs.forEach(j => { const m=j.created_at?.slice(0,7); if(m) byMonth[m]=(byMonth[m]||0)+1; });
+    Object.keys(aggByDay).forEach(day => { const m=day.slice(0,7); byMonth[m]=(byMonth[m]||0)+aggByDay[day]; });
+    Object.keys(byMonth).sort().forEach(m => {
+      const [y,mo] = m.split("-");
+      labels.push(`${mo}/${y.slice(2)}`);
+      data.push(byMonth[m]);
+    });
+    if (!labels.length) { labels.push("—"); data.push(0); }
+    document.getElementById("trendSub").textContent = "Số bài đăng mỗi tháng (tất cả thời gian, gồm dữ liệu đã lưu trữ)";
+  }
+  destroyChart("chartTrend");
+  const { tickClr, gridClr } = chartTheme();
+  charts.trend = new Chart(document.getElementById("chartTrend"), {
+    type:"bar",
+    data:{ labels, datasets:[{ label:"Bài đăng", data, backgroundColor:"#7c5cff50", borderColor:"#7c5cff", borderWidth:1, borderRadius:3 }]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        datalabels:{
+          anchor:"end", align:"top", color:tickClr, font:{size:10, weight:"600"},
+          formatter: v => v > 0 ? v : "",
+        }
+      },
+      scales:{
+        x:{ ticks:{color:tickClr,font:{size:10},maxRotation:45}, grid:{color:gridClr} },
+        y:{ ticks:{color:tickClr,font:{size:11},stepSize:1}, grid:{color:gridClr}, beginAtZero:true },
+      }
+    }
+  });
+}
+
+function renderStatusChart(jobs) {
+  const counts = aggGapByStatus();
+  jobs.forEach(j => { const k=["error_video_large","error_link"].includes(effectiveStatus(j))?"error":effectiveStatus(j); counts[k]=(counts[k]||0)+1; });
+  const labels = Object.keys(counts);
+  const data   = labels.map(l=>counts[l]);
+  const total  = data.reduce((a,b)=>a+b,0);
+  const colors = { pending:"#f59e0b", processing:"#60a5fa", success:"#22c55e", error:"#ef4444", ignored:"#64748b", replaced_link:"#38bdf8", scheduled:"#a5b4fc" };
+  const { legendClr, doughnutBorder } = chartTheme();
+  destroyChart("chartStatus");
+  charts.status = new Chart(document.getElementById("chartStatus"), {
+    type:"doughnut",
+    data:{ labels, datasets:[{ data, backgroundColor:labels.map(l=>colors[l]??"#666"), borderWidth:2, borderColor:doughnutBorder, hoverOffset:6 }]},
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{
+      legend:{ position:"bottom", labels:{ color:legendClr,font:{size:11},padding:8,boxWidth:10 }},
+      tooltip:{ callbacks:{ label: c => ` ${c.label}: ${c.raw} (${total?Math.round(c.raw/total*100):0}%)` }},
+      datalabels:{ color:"#fff", font:{size:11,weight:"700"}, formatter:(v)=> total&&v/total>=0.05 ? Math.round(v/total*100)+"%" : "" }
+    }}
+  });
+}
+
+function renderPlatformChart(jobs) {
+  const counts = {};
+  jobs.forEach(j => { if(j.platform) counts[j.platform]=(counts[j.platform]||0)+1; });
+  const labels = Object.keys(counts).sort((a,b)=>counts[b]-counts[a]);
+  const data   = labels.map(l=>counts[l]);
+  const total  = data.reduce((a,b)=>a+b,0);
+  const platColors = { facebook:"#1877f2", instagram:"#e1306c", x:"#1da1f2", telegram:"#2aabee", thread:"#aaa" };
+  const { legendClr, doughnutBorder } = chartTheme();
+  destroyChart("chartPlatform");
+  charts.platform = new Chart(document.getElementById("chartPlatform"), {
+    type:"doughnut",
+    data:{ labels:labels.map(cap), datasets:[{ data, backgroundColor:labels.map(l=>platColors[l]??"#666"), borderWidth:2, borderColor:doughnutBorder, hoverOffset:6 }]},
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{
+      legend:{ position:"bottom", labels:{ color:legendClr,font:{size:11},padding:8,boxWidth:10 }},
+      tooltip:{ callbacks:{ label: c => ` ${c.label}: ${c.raw} (${total?Math.round(c.raw/total*100):0}%)` }},
+      datalabels:{ color:"#fff", font:{size:11,weight:"700"}, formatter:(v)=> total&&v/total>=0.05 ? Math.round(v/total*100)+"%" : "" }
+    }}
+  });
+}
+
+function renderPagesBar(jobs) {
+  const counts = {};
+  jobs.forEach(j => { counts[j.page_name]=(counts[j.page_name]||0)+1; });
+  const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,15);
+  const max = sorted[0]?.[1] || 1;
+  document.getElementById("chartPages").innerHTML = sorted.length
+    ? sorted.map(([name,cnt])=>`<div class="hbar-row">
+        <div class="hbar-label" title="${esc(name)}">${esc(name)}</div>
+        <div class="hbar-track"><div class="hbar-fill fb" style="width:${Math.round(cnt/max*100)}%"></div></div>
+        <div class="hbar-count">${cnt}</div>
+      </div>`).join("")
+    : `<div style="color:var(--muted);font-size:13px">Chưa có dữ liệu</div>`;
+}
+
+function renderGroupsBar(jobs) {
+  const counts = {};
+  jobs.forEach(j => { const g=j.group||"(Không có group)"; counts[g]=(counts[g]||0)+1; });
+  const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+  const max = sorted[0]?.[1] || 1;
+  document.getElementById("chartGroups").innerHTML = sorted.length
+    ? sorted.map(([g,cnt])=>`<div class="hbar-row">
+        <div class="hbar-label" title="${esc(g)}">${esc(g)}</div>
+        <div class="hbar-track"><div class="hbar-fill" style="width:${Math.round(cnt/max*100)}%"></div></div>
+        <div class="hbar-count">${cnt}</div>
+      </div>`).join("")
+    : `<div style="color:var(--muted);font-size:13px">Chưa có dữ liệu</div>`;
+}
+
+function renderTokenAlerts() {
+  const now   = new Date();
+  const warn7 = new Date(Date.now()+7*864e5);
+  const expired  = allTokens.filter(t=>t.expires_at && new Date(t.expires_at)<=now);
+  const expiring = allTokens.filter(t=>t.expires_at && new Date(t.expires_at)>now && new Date(t.expires_at)<=warn7);
+  const alerts = [...expired.map(t=>({...t,_alert:"expired"})), ...expiring.map(t=>({...t,_alert:"expiring"}))];
+  const wrap = document.getElementById("tokenAlerts");
+  if (!alerts.length) {
+    wrap.innerHTML = `<div style="color:var(--success);font-size:12px">✅ Tất cả tokens còn hạn</div>`;
+    return;
+  }
+  wrap.innerHTML = alerts.slice(0,10).map(t => {
+    const expDate = new Date(t.expires_at).toLocaleDateString("vi-VN");
+    const isExp   = t._alert==="expired";
+    return `<div class="alert-row">
+      <div class="alert-icon">${isExp?"⛔":"⚡"}</div>
+      <div class="alert-info">
+        <div class="alert-page">${esc(t.pages?.page_name??"—")}</div>
+        <div class="alert-token">${esc(t.token_name||t.token_type)} · ${expDate}</div>
+      </div>
+      <span class="${isExp?"badge-expired":"badge-expiring"}">${isExp?"Hết hạn":"Sắp hết"}</span>
+    </div>`;
+  }).join("") + (alerts.length>10?`<div style="color:var(--muted);font-size:11px;padding-top:4px">+${alerts.length-10} khác</div>`:"");
+}
+
+function destroyChart(id) {
+  // Dùng Chart.js internal registry để đảm bảo canvas được giải phóng hoàn toàn
+  const canvas = document.getElementById(id);
+  if (canvas) { const existing = Chart.getChart(canvas); if (existing) { try { existing.destroy(); } catch(e) {} } }
+  if (charts[id]) { try { charts[id].destroy(); } catch(e) {} delete charts[id]; }
+}
+
+initAuthGuard({ page: "stats", onReady: () => {
+  loadAll();
+}});
+</script>
+</body>
+</html>

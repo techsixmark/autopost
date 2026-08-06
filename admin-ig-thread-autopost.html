@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>Autopost — IG &amp; Thread Autopost</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+  --bg:#f4f6f9; --surface:#ffffff; --surface2:#f4f6f9; --surface3:#eef1f6;
+  --border:#dde1e7; --border2:#e2e6ec; --text:#1a1d24; --text2:#374151;
+  --muted:#6b7280; --muted2:#9ca3af; --muted3:#c0c7d1;
+  --accent:#7c5cff; --accent-h:#6b4ef0;
+  --danger:#ef4444; --success:#22c55e; --warn:#f59e0b;
+  --fb:#1877f2; --x:#1da1f2; --tg:#2aabee; --ig:#e1306c;
+  --sidebar-w:248px;
+}
+    body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* topbar */
+    .topbar { height:52px; background:var(--surface); border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 24px; gap:12px; position:sticky; top:0; z-index:100; }
+    .logo { font-weight:700; font-size:15px; letter-spacing:-.3px; }
+    .sep { flex:1; }
+    .topbar-user { font-size:13px; color:var(--muted); display:flex; align-items:center; gap:10px; }
+    .avatar { width:28px; height:28px; border-radius:50%; background:var(--surface2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; overflow:hidden; font-size:14px; }
+
+    /* login */
+    .login-screen { min-height:100vh; display:flex; align-items:center; justify-content:center; }
+    .login-card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:40px; width:100%; max-width:380px; text-align:center; }
+    .login-card h2 { font-size:22px; font-weight:700; margin-bottom:6px; }
+    .login-card p { font-size:14px; color:var(--muted); margin-bottom:28px; }
+    .btn-google { background:#fff; color:#111; width:100%; display:flex; align-items:center; justify-content:center; gap:10px; padding:11px 16px; font-size:14px; border-radius:10px; border:none; cursor:pointer; margin-top:8px; }
+
+    /* buttons */
+    .btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:8px; border:none; font-size:13px; font-weight:500; cursor:pointer; transition:background .15s,opacity .15s; }
+    .btn:disabled { opacity:.4; cursor:not-allowed; }
+    .btn-primary { background:var(--accent); color:#fff; }
+    .btn-primary:hover:not(:disabled) { background:var(--accent-h); }
+    .btn-ghost { background:transparent; color:var(--muted); border:1px solid var(--border); }
+    .btn-ghost:hover { background:var(--surface2); color:var(--text); }
+    .btn-sm { padding:5px 10px; font-size:12px; }
+    .btn-danger { background:transparent; color:var(--danger); border:1px solid #3a1a1a; }
+    .btn-danger:hover { background:#fee2e2; }
+    html[data-theme="dark"] .btn-danger:hover { background:#2a1010; }
+
+    /* main */
+    .main { padding:24px 16px 60px; max-width:1280px; margin:0 auto; }
+
+    /* page header */
+    .page-header { display:flex; align-items:center; gap:16px; margin-bottom:24px; }
+    .page-header h1 { font-size:20px; font-weight:700; }
+    .page-header .sub { font-size:13px; color:var(--muted); margin-top:2px; }
+    .page-header .actions { margin-left:auto; display:flex; gap:8px; }
+
+    /* stats */
+    .stats { display:flex; gap:12px; margin-bottom:24px; flex-wrap:wrap; }
+    .stat { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px 20px; min-width:120px; }
+    .stat .num { font-size:24px; font-weight:700; line-height:1; }
+    .stat .lbl { font-size:12px; color:var(--muted); margin-top:4px; }
+    .stat.blue .num { color:#60a5fa; }
+    .stat.green .num { color:var(--success); }
+    .stat.warn .num { color:var(--warn); }
+    .stat.red .num { color:var(--danger); }
+
+    /* filters */
+    .filters { display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center; }
+    .filters input, .filters select { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:8px 12px; color:var(--text); font-size:13px; outline:none; }
+    .filters input:focus, .filters select:focus { border-color:var(--accent); }
+    .filters input { flex:1; min-width:200px; }
+
+    /* table */
+    .table-wrap { background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden; overflow-x:auto; }
+    table { width:100%; border-collapse:collapse; font-size:13px; }
+    thead th { text-align:left; padding:10px 14px; font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; border-bottom:1px solid var(--border); background:var(--surface2); white-space:nowrap; }
+    tbody tr { border-bottom:1px solid var(--border); transition:background .1s; }
+    tbody tr:last-child { border-bottom:none; }
+    tbody tr:hover { background:var(--surface2); }
+    tbody td { padding:10px 14px; vertical-align:middle; }
+    .td-actions { display:flex; gap:6px; justify-content:flex-end; }
+
+    /* chips */
+    .chip { display:inline-block; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600; background:var(--surface2); color:var(--muted); border:1px solid var(--border); }
+    .plat-badge { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:20px; font-size:11px; font-weight:600; white-space:nowrap; }
+    .plat-badge.instagram { background:#3a1030; color:#f472b6; }
+    .plat-badge.thread    { background:#f1f5f9; color:#64748b; }
+    html[data-theme="dark"] .plat-badge.thread { background:#1a1a1a; color:#aaa; }
+
+    /* modal */
+    .overlay { position:fixed; inset:0; background:rgba(0,0,0,.7); display:flex; align-items:center; justify-content:center; z-index:1000; padding:16px; }
+    .modal { background:var(--surface); border:1px solid var(--border); border-radius:16px; width:100%; max-width:580px; max-height:90vh; overflow-y:auto; }
+    .modal-header { padding:20px 24px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; background:var(--surface); z-index:1; }
+    .modal-header h2 { font-size:17px; font-weight:600; }
+    .modal-body { padding:20px 24px; display:flex; flex-direction:column; gap:16px; }
+    .modal-footer { padding:16px 24px; border-top:1px solid var(--border); display:flex; gap:8px; justify-content:flex-end; }
+
+    /* form fields */
+    .field { display:flex; flex-direction:column; gap:6px; }
+    .field label { font-size:12px; font-weight:600; color:#999; }
+    .field input, .field select, .field textarea {
+      background:#111; border:1px solid #2a2a2a; border-radius:8px;
+      padding:9px 12px; color:var(--text); font-size:13px; outline:none; font-family:inherit;
+    }
+    .field input:focus, .field select:focus, .field textarea:focus { border-color:#444; }
+    .field textarea { resize:vertical; min-height:70px; }
+    .field .hint { font-size:11px; color:var(--muted); }
+
+    /* sys info box */
+    .sys-box { background:#0d1117; border:1px solid #1e2633; border-radius:8px; padding:12px 14px; display:flex; flex-direction:column; gap:6px; }
+    .sys-row { display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:12px; }
+    .sys-row .sk { color:var(--muted); flex-shrink:0; }
+    .sys-row .sv { font-family:monospace; color:#7dd3fc; text-align:right; word-break:break-all; font-size:11px; }
+    .sys-row .sv.empty { color:#333; font-style:italic; font-family:system-ui; }
+    .sys-loading { color:var(--muted2); font-size:12px; font-style:italic; }
+
+    /* detail panel */
+    .detail-row { display:flex; gap:8px; align-items:baseline; font-size:13px; }
+    .detail-row .dk { color:var(--muted); flex-shrink:0; min-width:130px; font-size:12px; }
+    .detail-row .dv { word-break:break-all; }
+    .detail-row .dv a { color:var(--ig); text-decoration:none; }
+    .detail-row .dv a:hover { text-decoration:underline; }
+    .img-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-top:8px; }
+    .img-grid a { display:block; background:#111; border:1px solid #222; border-radius:6px; aspect-ratio:1; overflow:hidden; }
+    .img-grid a img { width:100%; height:100%; object-fit:cover; }
+
+    .empty-state { padding:60px 20px; text-align:center; color:var(--muted); }
+    .empty-state .icon { font-size:40px; margin-bottom:12px; }
+
+    /* toast */
+    #toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:#222; border:1px solid #333; border-radius:8px; padding:10px 20px; font-size:13px; z-index:9999; opacity:0; transition:opacity .2s; pointer-events:none; white-space:nowrap; }
+    #toast.show { opacity:1; }
+
+    @media(max-width:768px) {
+      .stats { gap:8px; }
+      .stat { min-width:100px; padding:10px 14px; }
+      .filters { gap:8px; }
+      thead th:nth-child(n+5) { display:none; }
+      tbody td:nth-child(n+5) { display:none; }
+    }
+
+    /* ── nav sidebar ── */
+    .nav-sb { width:196px; flex-shrink:0; background:#0d0d0d; border-right:1px solid #1e1e1e; display:flex; flex-direction:column; overflow:hidden; }
+    .nav-brand { padding:15px 14px 13px; border-bottom:1px solid #1e1e1e; }
+    .nav-logo { font-size:15px; font-weight:800; letter-spacing:-.5px; color:var(--text); }
+    .nav-logo b { color:var(--accent); }
+    .nav-links { flex:1; padding:7px 6px; overflow-y:auto; display:flex; flex-direction:column; gap:1px; }
+    .nav-link { display:flex; align-items:center; gap:7px; padding:7px 9px; border-radius:7px; text-decoration:none; color:#555; font-size:12px; transition:all .1s; white-space:nowrap; }
+    .nav-link:hover { background:#161616; color:#ccc; }
+    .nav-link.active { background:#2a0d20; color:var(--ig); font-weight:500; }
+    .nav-sep { height:1px; background:#1e1e1e; margin:4px 0; }
+    body[data-role="viewer"] .nav-admin,
+    body[data-role="editor"] .nav-admin { display:none; }
+    body[data-role="viewer"] .nav-editor { display:none; }
+    .app-layout { display:flex; height:calc(100vh - 52px); overflow:hidden; }
+    .app-main { flex:1; overflow:auto; }
+  </style>
+  <link rel="stylesheet" href="/shared.css" />
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginScreen" class="login-screen" style="display:none">
+  <div class="login-card">
+    <div style="font-size:36px;margin-bottom:16px">📸🧵</div>
+    <h2>Autopost</h2>
+    <p>IG &amp; Thread Autopost · Đăng nhập để tiếp tục</p>
+    <button class="btn-google" id="btnGoogleLogin">
+      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 32.5 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.7-8 19.7-20 0-1.3-.1-2.7-.1-4z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 16 19 12 24 12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 16.1 4 9.3 8.4 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-1.9 13.5-5l-6.2-5.2C29.4 35.6 26.8 36 24 36c-5.2 0-9.6-3.4-11.2-8.1L6.2 33C9.2 39.5 16 44 24 44z"/><path fill="#1976D2" d="M43.6 20H24v8h11.3c-.8 2.3-2.3 4.3-4.3 5.8l6.2 5.2C41.2 35.5 44 30.2 44 24c0-1.3-.1-2.7-.4-4z"/></svg>
+      Đăng nhập bằng Google
+    </button>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="appScreen" style="display:none">
+  <div class="topbar">
+    <div class="topbar-crumb"><span class="crumb-root">Autopost</span><span class="crumb-sep">›</span><span class="crumb-page">Đăng bài · IG/Thread Autopost</span></div>
+    <div style="font-size:12px;color:#444;padding:2px 8px;background:#111;border:1px solid var(--border);border-radius:4px;">📸 Instagram · 🧵 Thread</div>
+    <div class="sep"></div>
+    <div class="topbar-user">
+      <div class="avatar" id="avatarWrap"></div>
+      <span id="topbarEmail"></span>
+      <span id="topbarRole" style="font-size:11px;font-weight:600;padding:2px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;"></span>
+        <button class="btn btn-ghost" style="font-size:12px;padding:5px 10px" data-action="logout">Đăng xuất</button>
+    </div>
+  </div>
+
+  <div class="app-layout">
+    <!-- NAV SIDEBAR -->
+    <div class="nav-sb">
+      <div class="nav-brand"><span class="nav-logo">Auto<b>post</b></span><button class="theme-toggle" id="themeToggleBtn" onclick="toggleTheme()" title="Đổi giao diện" style="margin-left:auto">🌙</button></div>
+                  <nav class="nav-links">
+        <a class='nav-link' href='/'>🏠 Home</a>
+        <div class="nav-group-label nav-editor">ĐĂNG BÀI</div>
+        <a class='nav-link nav-editor' href='/admin-execution'>✍️ Tạo bài đăng</a>
+        <a class='nav-link' href='/admin-fb-autopost'>📘 FB Autopost</a>
+        <a class='nav-link' href='/admin-tg-autopost'>✈️ TG Autopost</a>
+        <a class='nav-link active' href='/admin-ig-thread-autopost'>📸 IG/Thread Autopost</a>
+        <div class="nav-group-label">THEO DÕI</div>
+        <a class='nav-link' href='/admin-jobs'>📋 Bài đăng</a>
+        <a class='nav-link nav-editor' href='/admin-stats'>📊 Thống kê</a>
+        <div class="nav-group-label">HỆ THỐNG</div>
+        <a class='nav-link nav-editor' href='/admin-pages'>📡 Page List</a>
+        <a class='nav-link nav-admin' href='/admin-users'>👥 Users</a>
+      </nav>
+    </div>
+
+  <div class="app-main">
+  <div class="main">
+    <div class="page-header">
+      <div>
+        <h1>📸🧵 IG &amp; Thread Autopost</h1>
+        <div class="sub">Quản lý hàng đợi đăng bài Instagram &amp; Thread · n8n automation</div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-ghost btn-sm" onclick="openStatusLegend()" title="Giải thích Trạng thái & n8n">ℹ️</button>
+        <button class="btn btn-ghost btn-sm" onclick="loadAll()">↺ Làm mới</button>
+        <a class="btn btn-primary" href="/admin-execution?platform=instagram,thread">+ Tạo bài đăng mới</a>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats" id="statsBar">
+      <div class="stat"><div class="num" id="sTotalJobs">—</div><div class="lbl">Tổng bài đăng</div></div>
+      <div class="stat blue"><div class="num" id="sPending">—</div><div class="lbl">Chờ đăng</div></div>
+      <div class="stat"><div class="num" id="sProcessing">—</div><div class="lbl">Đang xử lý</div></div>
+      <div class="stat green"><div class="num" id="sSuccess">—</div><div class="lbl">Thành công</div></div>
+      <div class="stat warn"><div class="num" id="sError">—</div><div class="lbl">Lỗi</div></div>
+      <div class="stat red"><div class="num" id="sErrLink">—</div><div class="lbl">Error Link</div></div>
+    </div>
+
+    <!-- View mode: Active / Archive -->
+    <div class="filters" style="margin-bottom:8px">
+      <button class="btn btn-primary btn-sm" id="btnViewActive" onclick="setViewMode('active')">📋 Đang hoạt động</button>
+      <button class="btn btn-ghost btn-sm" id="btnViewArchive" onclick="setViewMode('archive')">📦 Lưu trữ (<span id="archiveCount">0</span>)</button>
+      <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+        <span style="font-size:12px;color:var(--muted)">Lọc ngày:</span>
+        <button class="btn btn-primary btn-sm" id="btnDateToday" onclick="setDateRange('today')">Hôm nay</button>
+        <button class="btn btn-ghost btn-sm" id="btnDate7d" onclick="setDateRange('7d')">7 ngày</button>
+        <button class="btn btn-ghost btn-sm" id="btnDateAll" onclick="setDateRange('all')">Tất cả</button>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filters">
+      <input type="text" id="fSearch" placeholder="Tìm theo page, nội dung, link…" oninput="applyFilters()" />
+      <select id="fStatus" onchange="applyFilters()">
+        <option value="">Tất cả trạng thái</option>
+        <option value="pending">Chờ đăng</option>
+        <option value="processing">Đang xử lý</option>
+        <option value="success">Thành công</option>
+        <option value="error_link">Error Link</option>
+        <option value="error">Lỗi khác</option>
+      </select>
+      <select id="fPlatform" onchange="applyFilters()">
+        <option value="">Tất cả nền tảng</option>
+        <option value="instagram">📸 Instagram</option>
+        <option value="thread">🧵 Thread</option>
+      </select>
+      <select id="fPage" onchange="applyFilters()">
+        <option value="">Tất cả pages</option>
+      </select>
+    </div>
+
+    <!-- Table -->
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Tạo lúc</th>
+            <th>Page</th>
+            <th>Nền tảng</th>
+            <th>Topic</th>
+            <th>Nội dung</th>
+            <th>Trạng thái</th>
+            <th>n8n</th>
+            <th style="text-align:right">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody id="jobTbody">
+          <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--muted)">Đang tải…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  </div><!-- /app-main -->
+  </div><!-- /app-layout -->
+</div>
+
+<!-- ── NEW / EDIT JOB MODAL ── -->
+<div class="overlay" id="jobModal" style="display:none" onclick="if(event.target===this)closeJobModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="jobModalTitle">Tạo bài đăng mới</h2>
+      <button class="btn btn-ghost btn-sm" onclick="closeJobModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="editNotice" style="display:none;background:#111;border:1px solid #2a2a2a;border-radius:8px;padding:10px 14px;font-size:12px;color:#666;margin-bottom:4px">
+        ℹ Bài đăng cũ → <strong style="color:#aaa">ignored</strong> · Bài đăng mới tạo với trạng thái <strong style="color:#f59e0b">pending</strong>.
+      </div>
+
+      <!-- Page select -->
+      <div class="field">
+        <label>Page (Instagram / Thread) *</label>
+        <select id="mPage" onchange="onPageChange()">
+          <option value="">— Chọn page —</option>
+        </select>
+      </div>
+
+      <!-- Sys info (auto-filled) -->
+      <div class="field">
+        <label>Thông tin page (tự động)</label>
+        <div class="sys-box" id="sysBox">
+          <div class="sys-loading">Chọn page để xem thông tin…</div>
+        </div>
+      </div>
+
+      <!-- Video link -->
+      <div class="field">
+        <label>Input link gốc</label>
+        <input type="url" id="mVideoLink" placeholder="https://…" />
+        <span class="hint">Nguồn video để n8n xử lý</span>
+      </div>
+
+      <!-- Content type -->
+      <div class="field">
+        <label>Loại nội dung</label>
+        <select id="mContentType" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-size:13px;outline:none;width:100%">
+          <option value="image">🖼️ Image</option>
+          <option value="video">🎬 Video</option>
+          <option value="text">📝 Text</option>
+        </select>
+      </div>
+
+      <!-- Content -->
+      <div class="field">
+        <label>Nội dung *</label>
+        <textarea id="mContent" rows="4" placeholder="Nhập nội dung bài đăng…"></textarea>
+      </div>
+
+      <!-- Topic -->
+      <div class="field">
+        <label>Topic</label>
+        <input type="text" id="mTopic" placeholder="Chủ đề / nhóm nội dung…" />
+      </div>
+
+      <div style="font-size:11px;color:var(--muted2);line-height:1.5">
+        ℹ Bài đăng sẽ đăng ngay, thời gian lấy theo thời điểm tạo bài.
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeJobModal()">Huỷ</button>
+      <button class="btn btn-primary" id="btnSubmitJob" onclick="submitJob()">Tạo bài đăng</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── DETAIL MODAL ── -->
+<div class="overlay" id="detailModal" style="display:none" onclick="if(event.target===this)closeDetail()">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-header">
+      <h2>Chi tiết bài đăng</h2>
+      <button class="btn btn-ghost btn-sm" onclick="closeDetail()">✕</button>
+    </div>
+    <div class="modal-body" id="detailBody" style="gap:10px;">
+      <!-- filled dynamically -->
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeDetail()">Đóng</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: Sửa n8n_status (không tạo job mới) ══ -->
+<div class="overlay" id="n8nStatusModal" style="display:none" onclick="if(event.target===this)closeN8nStatusModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>🔧 Sửa n8n_status</h2>
+      <button class="btn btn-ghost btn-sm" onclick="closeN8nStatusModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:10px 14px;border-radius:8px;border:2px solid transparent;transition:border .15s" id="n8nOpt1Label" onclick="selectN8nOpt('reset')">
+          <input type="radio" name="n8nOpt" value="reset" id="n8nOptReset" checked style="margin-top:2px;accent-color:var(--accent)" />
+          <div>
+            <div style="font-size:13px;font-weight:500;">🕐 Đặt lại chờ đăng</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">Cập nhật n8n_status → "Chờ đăng", bài đăng sẽ được xử lý lại</div>
+          </div>
+        </label>
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:10px 14px;border-radius:8px;border:2px solid transparent;transition:border .15s" id="n8nOpt2Label" onclick="selectN8nOpt('cancel')">
+          <input type="radio" name="n8nOpt" value="cancel" id="n8nOptCancel" style="margin-top:2px;accent-color:var(--danger)" />
+          <div>
+            <div style="font-size:13px;font-weight:500;color:var(--danger)">🚫 Hủy bài đăng</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">Chuyển bài đăng vào Lưu trữ (status → ignored), không thể hoàn tác</div>
+          </div>
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeN8nStatusModal()">Đóng</button>
+      <button class="btn btn-primary" id="btnSaveN8nStatus" onclick="saveN8nStatus()">✔ Xác nhận</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="/shared.js"></script>
+<script src="/auth-guard.js"></script>
+<script>
+let currentUser = null;
+let allJobs = [];
+let viewMode = "active"; // "active" | "archive" — bài đăng "ignored" được tách riêng vào Lưu trữ
+let filterDateRange = "today"; // "today" | "7d" | "all"
+let allPages = [];
+let pageMap = {};
+
+// ── INIT ─────────────────────────────────────────────────────
+initAuthGuard({ page: "ig-thread-autopost", onReady: async ({ user }) => {
+  currentUser = user;
+  await loadAll();
+}});
+
+async function loadAll() {
+  await Promise.all([loadPages(), loadJobs()]);
+  updateStats();
+  applyFilters();
+}
+
+// ── PAGES ─────────────────────────────────────────────────────
+async function loadPages() {
+  const sb = getSB();
+  const { data } = await sb
+    .from("pages")
+    .select("id,page_name,platform,page_uid,page_group")
+    .in("platform", ["instagram","thread"])
+    .eq("is_active", true)
+    .order("page_name");
+
+  allPages = data || [];
+  pageMap = {};
+  allPages.forEach(p => pageMap[p.id] = p);
+
+  const fSel = document.getElementById("fPage");
+  fSel.innerHTML = '<option value="">Tất cả pages</option>' +
+    allPages.map(p => `<option value="${p.id}">${esc(p.page_name)}</option>`).join("");
+
+  const mSel = document.getElementById("mPage");
+  mSel.innerHTML = '<option value="">— Chọn page —</option>' +
+    allPages.map(p => `<option value="${p.id}">${p.platform==='instagram'?'📸':'🧵'} ${esc(p.page_name)}</option>`).join("");
+}
+
+// ── JOBS ──────────────────────────────────────────────────────
+async function loadJobs() {
+  const sb = getSB();
+  const { data, error } = await sb.rpc("get_ig_thread_jobs", { p_limit: 300, p_offset: 0 });
+  if (error) { console.error(error); return; }
+  allJobs = data || [];
+  updateStats();
+  applyFilters();
+}
+
+function updateStats() {
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const cutoff7d = new Date(); cutoff7d.setDate(cutoff7d.getDate() - 6); cutoff7d.setHours(0,0,0,0);
+  const active = allJobs.filter(j => {
+    if (effectiveStatus(j) === "ignored") return false;
+    if (filterDateRange !== "all" && j.input_datetime) {
+      const jDate = new Date(j.input_datetime);
+      if (filterDateRange === "today" && jDate.toISOString().slice(0,10) !== todayStr) return false;
+      if (filterDateRange === "7d"    && jDate < cutoff7d) return false;
+    }
+    return true;
+  });
+  const cnt = (s) => active.filter(j => effectiveStatus(j) === s).length;
+  document.getElementById("sTotalJobs").textContent   = active.length;
+  document.getElementById("sPending").textContent     = cnt("pending");
+  document.getElementById("sProcessing").textContent  = cnt("processing");
+  document.getElementById("sSuccess").textContent     = cnt("success");
+  document.getElementById("sError").textContent       = cnt("error");
+  document.getElementById("sErrLink").textContent     = cnt("error_link");
+  document.getElementById("archiveCount").textContent = allJobs.filter(j => effectiveStatus(j) === "ignored").length;
+}
+
+function setViewMode(mode) {
+  viewMode = mode;
+  document.getElementById("btnViewActive").className  = "btn btn-sm " + (mode === "active"  ? "btn-primary" : "btn-ghost");
+  document.getElementById("btnViewArchive").className = "btn btn-sm " + (mode === "archive" ? "btn-primary" : "btn-ghost");
+  applyFilters();
+}
+
+function setDateRange(range) {
+  filterDateRange = range;
+  document.getElementById("btnDateToday").className = "btn btn-sm " + (range === "today" ? "btn-primary" : "btn-ghost");
+  document.getElementById("btnDate7d").className    = "btn btn-sm " + (range === "7d"    ? "btn-primary" : "btn-ghost");
+  document.getElementById("btnDateAll").className   = "btn btn-sm " + (range === "all"   ? "btn-primary" : "btn-ghost");
+  updateStats();
+  applyFilters();
+}
+
+function applyFilters() {
+  const q    = document.getElementById("fSearch").value.toLowerCase();
+  const stat = document.getElementById("fStatus").value;
+  const plat = document.getElementById("fPlatform").value;
+  const pid  = document.getElementById("fPage").value;
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const cutoff7d = new Date(); cutoff7d.setDate(cutoff7d.getDate() - 6); cutoff7d.setHours(0,0,0,0);
+
+  const filtered = allJobs.filter(j => {
+    const isArchived = effectiveStatus(j) === "ignored";
+    if (viewMode === "archive" && !isArchived) return false;
+    if (viewMode === "active"  &&  isArchived) return false;
+    if (filterDateRange !== "all" && j.input_datetime) {
+      const jDate = new Date(j.input_datetime);
+      if (filterDateRange === "today" && jDate.toISOString().slice(0,10) !== todayStr) return false;
+      if (filterDateRange === "7d"    && jDate < cutoff7d) return false;
+    }
+    if (stat && effectiveStatus(j) !== stat) return false;
+    if (plat && j.platform !== plat) return false;
+    if (pid  && j.page_id !== pid) return false;
+    if (q) {
+      const haystack = [j.page_name, j.content, j.topic, j.post_link, j.video_link, j.input_link_video]
+        .filter(Boolean).join(" ").toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
+    return true;
+  });
+  renderTable(filtered);
+}
+
+function renderTable(jobs) {
+  const tbody = document.getElementById("jobTbody");
+  if (!jobs.length) {
+    tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state">
+      <div class="icon">📭</div>
+      <div>Chưa có bài đăng nào</div>
+    </div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = jobs.map((j, i) => {
+    const platIcon = j.platform === "instagram" ? "📸" : "🧵";
+    const n8nCell = n8nBadgeHTML(j) + (j.n8n_note ? `<div style="font-size:10px;color:var(--muted);margin-top:2px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(j.n8n_note)}">${esc(j.n8n_note)}</div>` : "");
+    const canEdit = !["ignored"].includes(effectiveStatus(j));
+    return `
+    <tr>
+      <td style="color:var(--muted);font-size:12px">${i+1}</td>
+      <td style="white-space:nowrap">${fmtDateTime(j.created_at)}</td>
+      <td>
+        <div style="font-weight:500;font-size:13px">${esc(j.page_name||'—')}</div>
+      </td>
+      <td><span class="plat-badge ${j.platform}">${platIcon} ${j.platform === "instagram" ? "Instagram" : "Thread"}</span></td>
+      <td><span class="chip">${esc(j.topic||"—")}</span></td>
+      <td style="max-width:220px">
+        ${j.content
+          ? `<div style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px" title="${esc(j.content)}">${esc(j.content)}</div>`
+          : (j.input_link_video ? `<a href="${esc(j.input_link_video)}" target="_blank" style="font-size:11px;color:var(--ig);font-family:monospace">Video ↗</a>` : '<span style="color:var(--muted2)">—</span>')
+        }
+        ${j.post_link ? `<div><a href="${esc(j.post_link)}" target="_blank" style="font-size:11px;color:#4ade80">Bài viết ↗</a></div>` : ''}
+      </td>
+      <td>${statusBadgeHTML(j)}</td>
+      <td style="white-space:nowrap">${n8nCell}</td>
+      <td>
+        <div class="td-actions">
+          ${canEdit ? `<button class="btn btn-ghost btn-sm" onclick="openEditModal('${j.id}')">✏️ Sửa</button>` : ''}
+          <button class="btn btn-ghost btn-sm" onclick="openN8nStatusModal('${j.id}')" title="Sửa n8n_status — không tạo bài đăng mới">🔧 n8n</button>
+          <button class="btn btn-ghost btn-sm" onclick="openDetail('${j.id}')">Chi tiết</button>
+          ${j.status === 'pending' ? `<button class="btn btn-danger btn-sm" onclick="deleteJob('${j.id}')">Xoá</button>` : ''}
+        </div>
+      </td>
+    </tr>`;
+  }).join("");
+}
+
+// ── NEW / EDIT JOB MODAL ───────────────────────────────────────
+let editJobId = null;
+
+function openNewJobModal() {
+  editJobId = null;
+  document.getElementById("jobModalTitle").textContent = "Tạo bài đăng mới";
+  document.getElementById("editNotice").style.display = "none";
+  document.getElementById("mPage").value = "";
+  document.getElementById("mContent").value = "";
+  document.getElementById("mTopic").value = "";
+  document.getElementById("mVideoLink").value = "";
+  document.getElementById("mContentType").value = "image";
+  document.getElementById("sysBox").innerHTML = '<div class="sys-loading">Chọn page để xem thông tin…</div>';
+  document.getElementById("btnSubmitJob").disabled = false;
+  document.getElementById("btnSubmitJob").textContent = "Tạo bài đăng";
+  document.getElementById("jobModal").style.display = "flex";
+}
+
+function openEditModal(jobId) {
+  editJobId = jobId;
+  const j = allJobs.find(x => x.id === jobId);
+  if (!j) return;
+  document.getElementById("jobModalTitle").textContent = "✏️ Chỉnh sửa bài đăng";
+  document.getElementById("editNotice").style.display = "block";
+  document.getElementById("mPage").value = j.page_id || "";
+  document.getElementById("mContent").value = j.content || "";
+  document.getElementById("mTopic").value = j.topic || "";
+  document.getElementById("mVideoLink").value = j.input_link_video || "";
+  document.getElementById("mContentType").value = j.input_content_type || "image";
+  onPageChange();
+  document.getElementById("btnSubmitJob").disabled = false;
+  document.getElementById("btnSubmitJob").textContent = "✏️ Lưu & Tạo mới";
+  document.getElementById("jobModal").style.display = "flex";
+}
+
+function closeJobModal() {
+  document.getElementById("jobModal").style.display = "none";
+  editJobId = null;
+}
+
+function onPageChange() {
+  const pageId = document.getElementById("mPage").value;
+  const box = document.getElementById("sysBox");
+  if (!pageId) {
+    box.innerHTML = '<div class="sys-loading">Chọn page để xem thông tin…</div>';
+    return;
+  }
+  const page = pageMap[pageId] || {};
+  box.innerHTML = `
+    <div class="sys-row"><span class="sk">sys_Nền tảng</span><span class="sv">${page.platform==='instagram'?'📸 Instagram':'🧵 Thread'}</span></div>
+    <div class="sys-row"><span class="sk">sys_Page UID</span><span class="sv ${!page.page_uid?'empty':''}">${esc(page.page_uid||'(chưa có)')}</span></div>
+    <div class="sys-row"><span class="sk">sys_Page group</span><span class="sv ${!page.page_group?'empty':''}">${esc(page.page_group||'(chưa có)')}</span></div>
+    <div class="sys-row"><span class="sk">sys_Email</span><span class="sv ${!currentUser?.email?'empty':''}">${esc(currentUser?.email||'(chưa có)')}</span></div>
+  `;
+}
+
+async function submitJob() {
+  const pageId = document.getElementById("mPage").value;
+  if (!pageId) { toast("Vui lòng chọn page", "warn"); return; }
+  const page = pageMap[pageId];
+  if (!page) { toast("Page không hợp lệ", "error"); return; }
+
+  const btn = document.getElementById("btnSubmitJob");
+  btn.disabled = true; btn.textContent = "Đang xử lý…";
+
+  const sb = getSB();
+  // Giữ nguyên ảnh của bài đăng gốc khi Sửa (form không còn input link ảnh)
+  const origJob = editJobId ? allJobs.find(x => x.id === editJobId) : null;
+
+  const payload = {
+    user_id:    currentUser.id,
+    page_id:    pageId,
+    page_name:  page.page_name,
+    platform:   page.platform,
+    content:          document.getElementById("mContent").value.trim() || null,
+    topic:            document.getElementById("mTopic").value.trim() || null,
+    img_1: origJob?.img_1 ?? null, img_2: origJob?.img_2 ?? null, img_3: origJob?.img_3 ?? null,
+    img_4: origJob?.img_4 ?? null, img_5: origJob?.img_5 ?? null, img_6: origJob?.img_6 ?? null,
+    img_7: origJob?.img_7 ?? null, img_8: origJob?.img_8 ?? null, img_9: origJob?.img_9 ?? null,
+    img_10: origJob?.img_10 ?? null,
+    input_link_video:   document.getElementById("mVideoLink").value.trim() || null,
+    input_content_type: document.getElementById("mContentType").value || null,
+    sys_email:          currentUser.email,
+    status:           "pending",
+  };
+
+  try {
+    if (editJobId) {
+      payload.parent_job_id = editJobId;
+      const { error: ie } = await sb.from("ig_thread_autopost_jobs").insert(payload);
+      if (ie) throw ie;
+      const { error: ue } = await sb.from("ig_thread_autopost_jobs").update({ status:"ignored" }).eq("id", editJobId);
+      if (ue) throw ue;
+      toast("✅ Bài đăng mới đã tạo · bài đăng cũ → ignored", "success");
+    } else {
+      const { error } = await sb.from("ig_thread_autopost_jobs").insert(payload);
+      if (error) throw error;
+      toast("✅ Tạo bài đăng thành công!", "success");
+    }
+    closeJobModal();
+    loadJobs();
+  } catch(e) {
+    toast("Lỗi: " + e.message, "error");
+  } finally {
+    btn.disabled = false; btn.textContent = editJobId ? "✏️ Lưu & Tạo mới" : "Tạo bài đăng";
+  }
+}
+
+// ── DETAIL ────────────────────────────────────────────────────
+function openDetail(jobId) {
+  const job = allJobs.find(j => j.id === jobId);
+  if (!job) return;
+  const imgs = [job.img_1,job.img_2,job.img_3,job.img_4,job.img_5,job.img_6,job.img_7,job.img_8,job.img_9,job.img_10].filter(Boolean);
+  document.getElementById("detailBody").innerHTML = `
+    <div style="display:grid;gap:8px;">
+      <div class="detail-row"><span class="dk">Page</span><span class="dv"><strong>${esc(job.page_name||'—')}</strong></span></div>
+      <div class="detail-row"><span class="dk">Nền tảng</span><span class="dv"><span class="plat-badge ${job.platform}">${job.platform==='instagram'?'📸 Instagram':'🧵 Thread'}</span></span></div>
+      <div class="detail-row"><span class="dk">Topic</span><span class="dv">${esc(job.topic||'—')}</span></div>
+      <div class="detail-row"><span class="dk">Link video nguồn</span><span class="dv">${job.input_link_video ? `<a href="${job.input_link_video}" target="_blank">${esc(job.input_link_video)}</a>` : '—'}</span></div>
+      <div class="detail-row"><span class="dk">Tạo lúc</span><span class="dv">${fmtDateTime(job.created_at)}</span></div>
+
+      <div style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Kết quả n8n</div>
+      <div class="detail-row"><span class="dk">Trạng thái</span><span class="dv">${statusBadgeHTML(job)}</span></div>
+      ${job.n8n_status ? `<div class="detail-row"><span class="dk">n8n status</span><span class="dv">${n8nBadgeHTML(job)}</span></div>` : ''}
+      ${job.n8n_note   ? `<div class="detail-row"><span class="dk">n8n note</span><span class="dv" style="color:var(--muted)">${esc(job.n8n_note)}</span></div>` : ''}
+      <div class="detail-row"><span class="dk">Execution ID</span><span class="dv" style="font-family:monospace;font-size:11px">${esc(job.execution_id||'—')}</span></div>
+      <div class="detail-row"><span class="dk">Nội dung chính</span><span class="dv">${esc(job.content||'—')}</span></div>
+      <div class="detail-row"><span class="dk">Loại bài viết (kết quả)</span><span class="dv">${esc(job.post_type||'—')}</span></div>
+      <div class="detail-row"><span class="dk">Link bài đăng</span><span class="dv">${job.post_link ? `<a href="${job.post_link}" target="_blank">Mở bài viết ↗</a>` : '—'}</span></div>
+      <div class="detail-row"><span class="dk">Link video</span><span class="dv">${job.video_link ? `<a href="${job.video_link}" target="_blank">Xem video ↗</a>` : '—'}</span></div>
+      <div class="detail-row"><span class="dk">Out link bài</span><span class="dv">${job.out_link ? `<a href="${job.out_link}" target="_blank">${esc(job.out_link)}</a>` : '—'}</span></div>
+      <div class="detail-row"><span class="dk">Output video 1</span><span class="dv">${job.output_link_video_1 ? `<a href="${esc(job.output_link_video_1)}" target="_blank">${esc(job.output_link_video_1)}</a>` : '—'}</span></div>
+      <div class="detail-row"><span class="dk">Output video 2</span><span class="dv">${job.output_link_video_2 ? `<a href="${esc(job.output_link_video_2)}" target="_blank">${esc(job.output_link_video_2)}</a>` : '—'}</span></div>
+      <div class="detail-row"><span class="dk">Output video 3</span><span class="dv">${job.output_link_video_3 ? `<a href="${esc(job.output_link_video_3)}" target="_blank">${esc(job.output_link_video_3)}</a>` : '—'}</span></div>
+      <div class="detail-row"><span class="dk">Output video 4</span><span class="dv">${job.output_link_video_4 ? `<a href="${esc(job.output_link_video_4)}" target="_blank">${esc(job.output_link_video_4)}</a>` : '—'}</span></div>
+      <div class="detail-row"><span class="dk">Output video 5</span><span class="dv">${job.output_link_video_5 ? `<a href="${esc(job.output_link_video_5)}" target="_blank">${esc(job.output_link_video_5)}</a>` : '—'}</span></div>
+      <div class="detail-row"><span class="dk">Output video 6</span><span class="dv">${job.output_link_video_6 ? `<a href="${esc(job.output_link_video_6)}" target="_blank">${esc(job.output_link_video_6)}</a>` : '—'}</span></div>
+      <div class="detail-row"><span class="dk">Output video 7</span><span class="dv">${job.output_link_video_7 ? `<a href="${esc(job.output_link_video_7)}" target="_blank">${esc(job.output_link_video_7)}</a>` : '—'}</span></div>
+      <div class="detail-row"><span class="dk">Output video 8</span><span class="dv">${job.output_link_video_8 ? `<a href="${esc(job.output_link_video_8)}" target="_blank">${esc(job.output_link_video_8)}</a>` : '—'}</span></div>
+      <div class="detail-row"><span class="dk">Output video 9</span><span class="dv">${job.output_link_video_9 ? `<a href="${esc(job.output_link_video_9)}" target="_blank">${esc(job.output_link_video_9)}</a>` : '—'}</span></div>
+    </div>
+    ${imgs.length ? `<div style="margin-top:10px"><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Ảnh (${imgs.length})</div>
+      <div class="img-grid">${imgs.map(u=>`<a href="${esc(u)}" target="_blank"><img src="${esc(u)}" loading="lazy" /></a>`).join("")}</div></div>` : ""}
+  `;
+  document.getElementById("detailModal").style.display = "flex";
+}
+
+function closeDetail() {
+  document.getElementById("detailModal").style.display = "none";
+}
+
+// ── DELETE ────────────────────────────────────────────────────
+async function deleteJob(id) {
+  if (!confirm("Xoá job này?")) return;
+  const sb = getSB();
+  const { error } = await sb.from("ig_thread_autopost_jobs").delete().eq("id", id);
+  if (error) { toast("Lỗi: " + error.message, "error"); return; }
+  toast("Đã xoá bài đăng", "success");
+  loadJobs();
+}
+
+// ── SỬA n8n_status (không tạo job mới) ────────────────────────
+let n8nStatusJobId = null;
+function selectN8nOpt(val) {
+  document.getElementById("n8nOptReset").checked = val === "reset";
+  document.getElementById("n8nOptCancel").checked = val === "cancel";
+  const l1 = document.getElementById("n8nOpt1Label");
+  const l2 = document.getElementById("n8nOpt2Label");
+  const btn = document.getElementById("btnSaveN8nStatus");
+  if (val === "reset") {
+    l1.style.border = "2px solid var(--accent)"; l1.style.background = "color-mix(in srgb, var(--accent) 10%, transparent)";
+    l2.style.border = "2px solid transparent"; l2.style.background = "transparent";
+    btn.className = "btn btn-primary";
+  } else {
+    l2.style.border = "2px solid var(--danger)"; l2.style.background = "color-mix(in srgb, var(--danger) 10%, transparent)";
+    l1.style.border = "2px solid transparent"; l1.style.background = "transparent";
+    btn.className = "btn btn-danger";
+  }
+}
+function openN8nStatusModal(jobId) {
+  n8nStatusJobId = jobId;
+  document.getElementById("n8nStatusModal").style.display = "flex";
+  selectN8nOpt("reset");
+}
+function closeN8nStatusModal() {
+  document.getElementById("n8nStatusModal").style.display = "none";
+  n8nStatusJobId = null;
+}
+async function saveN8nStatus() {
+  const opt = document.querySelector('input[name="n8nOpt"]:checked')?.value;
+  const btn = document.getElementById("btnSaveN8nStatus");
+  btn.disabled = true; btn.textContent = "Đang lưu…";
+  const sb = getSB();
+  let error;
+  if (opt === "cancel") {
+    ({ error } = await sb.from("ig_thread_autopost_jobs").update({ status: "ignored" }).eq("id", n8nStatusJobId));
+    if (!error) toast("🚫 Đã hủy · bài đăng chuyển vào Lưu trữ", "success");
+  } else {
+    ({ error } = await sb.from("ig_thread_autopost_jobs").update({ n8n_status: "Chờ đăng" }).eq("id", n8nStatusJobId));
+    if (!error) toast("✅ Đã đặt lại n8n_status = Chờ đăng", "success");
+  }
+  btn.disabled = false; btn.textContent = "✔ Xác nhận";
+  if (error) return toast(error.message, "error");
+  closeN8nStatusModal();
+  loadJobs();
+}
+
+// ── HELPERS ───────────────────────────────────────────────────
+function fmtDateTime(d) {
+  if (!d) return "—";
+  const dt = new Date(d);
+  return `${String(dt.getDate()).padStart(2,"0")}/${String(dt.getMonth()+1).padStart(2,"0")} ${String(dt.getHours()).padStart(2,"0")}:${String(dt.getMinutes()).padStart(2,"0")}`;
+}
+
+function esc(s) {
+  if (s == null) return "";
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+let toastTimer;
+function toast(msg, type="info") {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.style.background = type === "error" ? "#2a1010" : type === "success" ? "#0a2a1a" : type === "warn" ? "#2a1a00" : "#222";
+  el.style.color = type === "error" ? "#f87171" : type === "success" ? "#4ade80" : type === "warn" ? "#fb923c" : "#e8e8e8";
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 3000);
+}
+</script>
+</body>
+</html>

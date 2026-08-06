@@ -1,0 +1,362 @@
+/* ═══════════════════════════════════════════════════════════
+   Autopost Admin — Shared Design System v2
+   Light theme default · Dark override · Violet accent
+   ═══════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+/* ── Dark theme token overrides ── */
+html[data-theme="dark"] {
+  --bg:      #0a0a0a;
+  --surface: #141414;
+  --surface2:#1c1c1c;
+  --surface3:#222222;
+  --border:  #272727;
+  --border2: #323232;
+  --text:    #e8e8e8;
+  --text2:   #d1d5db;
+  --muted:   #666666;
+  --muted2:  #555555;
+  --muted3:  #3a3a3a;
+  --accent:  #7c5cff;
+  --accent-h:#6b4ef0;
+}
+
+/* ── Font ── */
+html, body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+
+/* ── Smooth theme transitions ── */
+body, .topbar, .nav-sb, .sidebar, .app-main, .content,
+.table-wrap, .modal, .stat-card, .chart-card, .login-card,
+.plat-card, .tpl-card, .page-card, .review-box, .preview-pane,
+.schedule-section, .fb-info-box, .tg-sysinfo,
+.field input, .field select, .field textarea, .btn-ghost,
+td, th, thead, tbody tr, .nav-link, .nav-brand, .overlay,
+.nav-group-label, input[type="date"], input[type="datetime-local"],
+.sb-select, .date-input, .search-input, .tpl-search {
+  transition: background-color .18s ease, border-color .18s ease, color .18s ease;
+}
+
+/* ── Topbar ── */
+.topbar {
+  border-bottom: 1px solid var(--border) !important;
+  box-shadow: 0 1px 3px rgba(20,30,50,.06);
+}
+html[data-theme="dark"] .topbar {
+  box-shadow: 0 1px 8px rgba(0,0,0,.2);
+  background: var(--surface) !important;
+}
+html[data-theme="light"] .topbar,
+:root:not([data-theme]) .topbar {
+  background: rgba(255,255,255,.94) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* ── Topbar breadcrumb ── */
+.topbar-crumb { display:flex; align-items:center; gap:7px; font-size:13px; }
+.crumb-root { color:var(--muted2); font-weight:500; }
+.crumb-sep  { color:var(--muted3); font-size:12px; }
+.crumb-page { color:var(--text2, var(--text)); font-weight:600; }
+
+/* ── Theme toggle button ── */
+.theme-toggle {
+  width: 28px; height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 13px; line-height: 1; flex-shrink: 0;
+  transition: background .15s, transform .2s, border-color .15s;
+}
+.theme-toggle:hover { background: var(--surface3); transform: rotate(20deg) scale(1.05); }
+
+/* ── Nav sidebar — Variant B (full accent active) ── */
+.nav-sb {
+  background: var(--surface) !important;
+  border-right-color: var(--border) !important;
+}
+.nav-brand { border-bottom-color: var(--border) !important; }
+.nav-logo  { color: var(--text) !important; }
+.nav-logo b { color: var(--accent) !important; }
+.nav-links { gap: 1px; }
+
+.nav-link {
+  color: var(--muted) !important;
+  border-radius: 9px !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  padding: 8px 11px !important;
+  gap: 8px !important;
+}
+.nav-link:hover {
+  background: var(--surface3) !important;
+  color: var(--text2, var(--text)) !important;
+}
+.nav-link.active {
+  background: var(--accent) !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
+html[data-theme="dark"] .nav-link:hover {
+  color: var(--text) !important;
+}
+.nav-sep { background: var(--border) !important; }
+
+/* ── Nav group labels ── */
+.nav-group-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .09em;
+  color: var(--muted2);
+  padding: 11px 9px 4px;
+  white-space: nowrap;
+}
+
+/* ── Status badges — pill system ── */
+.status-badge, .badge, .n8n-badge { border-radius: 20px; }
+
+/* Light */
+.st-success, .badge-success      { background:#dcfce7; color:#15803d; }
+.st-error,   .badge-error        { background:#fee2e2; color:#b91c1c; }
+.st-error_link, .badge-error_link{ background:#fee2e2; color:#b91c1c; }
+.st-error_video_large            { background:#ffedd5; color:#c2410c; }
+.st-pending, .badge-pending      { background:#fef3c7; color:#b45309; }
+.st-processing, .badge-processing{ background:#dbeafe; color:#1d4ed8; }
+.st-scheduled                    { background:#ede9fe; color:#7c3aed; }
+.st-ignored, .badge-ignored      { background:#f1f5f9; color:#64748b; }
+.st-replaced_link                { background:#e0f2fe; color:#0369a1; }
+
+/* Dark overrides */
+html[data-theme="dark"] .st-success,
+html[data-theme="dark"] .badge-success      { background:#0a2a12; color:#4ade80; }
+html[data-theme="dark"] .st-error,
+html[data-theme="dark"] .badge-error,
+html[data-theme="dark"] .st-error_link,
+html[data-theme="dark"] .badge-error_link,
+html[data-theme="dark"] .st-error_video_large { background:#2a0a0a; color:#f87171; }
+html[data-theme="dark"] .st-pending,
+html[data-theme="dark"] .badge-pending      { background:#2a1f00; color:#fbbf24; }
+html[data-theme="dark"] .st-processing,
+html[data-theme="dark"] .badge-processing   { background:#0a1a3a; color:#60a5fa; }
+html[data-theme="dark"] .st-scheduled       { background:#1a1030; color:#a78bfa; }
+html[data-theme="dark"] .st-ignored,
+html[data-theme="dark"] .badge-ignored      { background:#1a1a1a; color:#555; }
+html[data-theme="dark"] .st-replaced_link   { background:#0a1a2a; color:#38bdf8; }
+
+/* ── n8n badges ── */
+.n8n-success                                { background:#dcfce7; color:#15803d; }
+.n8n-error, .n8n-errlink                    { background:#fee2e2; color:#b91c1c; }
+.n8n-running                                { background:#dbeafe; color:#1d4ed8; }
+
+html[data-theme="dark"] .n8n-success        { background:#0a2a12; color:#4ade80; }
+html[data-theme="dark"] .n8n-error,
+html[data-theme="dark"] .n8n-errlink        { background:#2a0a0a; color:#f87171; }
+html[data-theme="dark"] .n8n-running        { background:#0a1a3a; color:#60a5fa; }
+
+/* ── Table ── */
+html:not([data-theme="dark"]) table           { background: var(--surface); }
+html:not([data-theme="dark"]) thead           { background: var(--surface2); }
+html:not([data-theme="dark"]) th              { color: var(--muted); border-bottom: 1px solid var(--border); }
+html:not([data-theme="dark"]) td              { border-top-color: var(--border); color: var(--text); }
+html:not([data-theme="dark"]) tbody tr:hover  { background: var(--surface3) !important; }
+html:not([data-theme="dark"]) .table-wrap     { border-color: var(--border); box-shadow: 0 1px 4px rgba(20,30,50,.05); }
+
+/* ── Platform row accent bar ── */
+.row-plat-facebook  { border-left: 3px solid var(--fb)   !important; }
+.row-plat-telegram  { border-left: 3px solid var(--tg)   !important; }
+.row-plat-instagram { border-left: 3px solid var(--ig)   !important; }
+.row-plat-x         { border-left: 3px solid var(--x)    !important; }
+.row-plat-generic,
+.row-plat-gen       { border-left: 3px solid #a855f7     !important; }
+
+/* ── Filter sidebar ── */
+html:not([data-theme="dark"]) .sidebar          { background: var(--surface); border-right-color: var(--border); }
+html:not([data-theme="dark"]) .sb-btn:hover     { background: var(--surface2) !important; }
+html:not([data-theme="dark"]) .sb-btn.active    { background: var(--surface3) !important; color: var(--text) !important; }
+
+/* ── Stat cards ── */
+html:not([data-theme="dark"]) .stat-card        { background: var(--surface) !important; border-color: var(--border) !important; }
+html:not([data-theme="dark"]) .stat-card:hover,
+html:not([data-theme="dark"]) .stat-card.active { border-color: var(--accent) !important; }
+
+/* Stat card progress bar */
+.stat-progress       { height:3px; border-radius:3px; background:var(--surface3); margin-top:6px; overflow:hidden; }
+.stat-progress-fill  { height:100%; border-radius:3px; transition:width .4s ease; }
+
+/* ── Form fields ── */
+html:not([data-theme="dark"]) .field input,
+html:not([data-theme="dark"]) .field select,
+html:not([data-theme="dark"]) .field textarea,
+html:not([data-theme="dark"]) input[type="date"],
+html:not([data-theme="dark"]) input[type="datetime-local"],
+html:not([data-theme="dark"]) .date-input,
+html:not([data-theme="dark"]) .search-input,
+html:not([data-theme="dark"]) .sb-select,
+html:not([data-theme="dark"]) .tpl-search,
+html:not([data-theme="dark"]) .filters input,
+html:not([data-theme="dark"]) .filters select {
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+html:not([data-theme="dark"]) .field input:focus,
+html:not([data-theme="dark"]) .field select:focus,
+html:not([data-theme="dark"]) .field textarea:focus {
+  border-color: var(--accent) !important;
+  outline: none;
+}
+
+/* ── Buttons ── */
+html:not([data-theme="dark"]) .btn-ghost {
+  color: var(--muted) !important;
+  border-color: var(--border) !important;
+  background: var(--surface) !important;
+}
+html:not([data-theme="dark"]) .btn-ghost:hover {
+  background: var(--surface2) !important;
+  color: var(--text) !important;
+}
+.btn-primary { background: var(--accent) !important; }
+.btn-primary:hover { background: var(--accent-h, #6b4ef0) !important; }
+
+/* ── Period/filter buttons active ── */
+.period-btn.active,
+.filter-btn.active {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+  color: #fff !important;
+}
+
+/* ── Pagination ── */
+html:not([data-theme="dark"]) .pg-btn,
+html:not([data-theme="dark"]) .pag-btn {
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+  color: var(--muted) !important;
+}
+html:not([data-theme="dark"]) .pg-btn:hover:not(:disabled),
+html:not([data-theme="dark"]) .pag-btn:hover:not(:disabled) {
+  background: var(--surface2) !important;
+  color: var(--text) !important;
+  border-color: var(--accent) !important;
+}
+.pg-btn.active, .pag-btn.active {
+  background: var(--accent) !important;
+  color: #fff !important;
+  border-color: var(--accent) !important;
+}
+
+/* ── Modal ── */
+html:not([data-theme="dark"]) .modal {
+  background: var(--surface);
+  box-shadow: 0 8px 32px rgba(20,30,50,.12), 0 2px 8px rgba(20,30,50,.06);
+}
+html:not([data-theme="dark"]) .overlay { background: rgba(20,30,50,.36); }
+
+/* ── Cards & surfaces ── */
+html:not([data-theme="dark"]) .plat-card,
+html:not([data-theme="dark"]) .tpl-card,
+html:not([data-theme="dark"]) .page-card,
+html:not([data-theme="dark"]) .review-box {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: 0 1px 3px rgba(20,30,50,.04);
+}
+html:not([data-theme="dark"]) .plat-card:hover,
+html:not([data-theme="dark"]) .tpl-card:hover,
+html:not([data-theme="dark"]) .page-card:hover {
+  background: var(--surface2) !important;
+  box-shadow: 0 4px 12px rgba(20,30,50,.08);
+}
+html:not([data-theme="dark"]) .preview-pane,
+html:not([data-theme="dark"]) .schedule-section,
+html:not([data-theme="dark"]) .fb-info-box {
+  background: var(--surface2) !important;
+  border-color: var(--border) !important;
+}
+
+/* ── Login card ── */
+html:not([data-theme="dark"]) .login-card {
+  box-shadow: 0 4px 24px rgba(20,30,50,.08);
+}
+
+/* ── Detail panel ── */
+html:not([data-theme="dark"]) .detail-item  { background: var(--surface2) !important; border-color: var(--border) !important; }
+html:not([data-theme="dark"]) .detail-row .dk { color: var(--muted); }
+html:not([data-theme="dark"]) .detail-row .dv { color: var(--text); }
+
+/* ── Toggle row ── */
+html:not([data-theme="dark"]) .toggle-row {
+  background: var(--surface2) !important;
+  border-color: var(--border) !important;
+}
+
+/* ── Empty state ── */
+html:not([data-theme="dark"]) .empty,
+html:not([data-theme="dark"]) .empty-state { color: var(--muted); }
+
+/* ── Overview/alert cards ── */
+html:not([data-theme="dark"]) .ov-card,
+html:not([data-theme="dark"]) .alert-row {
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+/* ── Segment control ── */
+.seg-ctrl {
+  display: inline-flex;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 3px;
+  gap: 2px;
+}
+.seg-btn {
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  background: transparent;
+  color: var(--muted);
+  transition: all .12s;
+}
+.seg-btn.active { background: var(--accent); color: #fff; font-weight: 600; }
+
+/* ── Status badges (đồng nhất cho mọi template autopost) ── */
+.status-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.st-pending           { background: #fef3c7; color: #b45309; }
+.st-processing        { background: #dbeafe; color: #1d4ed8; }
+.st-success           { background: #dcfce7; color: #15803d; }
+.st-error             { background: #fee2e2; color: #b91c1c; }
+.st-error_video_large { background: #ffedd5; color: #c2410c; }
+.st-error_link        { background: #fee2e2; color: #b91c1c; }
+.st-replaced_link     { background: #e0f2fe; color: #0369a1; }
+.st-ignored           { background: #f1f5f9; color: #64748b; }
+html[data-theme="dark"] .st-pending           { background: #2a1f00; color: #fbbf24; }
+html[data-theme="dark"] .st-processing        { background: #0a1a3a; color: #60a5fa; }
+html[data-theme="dark"] .st-success           { background: #0a2a12; color: #4ade80; }
+html[data-theme="dark"] .st-error             { background: #2a0a0a; color: #f87171; }
+html[data-theme="dark"] .st-error_video_large { background: #2a1500; color: #fb923c; }
+html[data-theme="dark"] .st-error_link        { background: #2a0a0a; color: #f87171; }
+html[data-theme="dark"] .st-replaced_link     { background: #0a1a2a; color: #38bdf8; }
+html[data-theme="dark"] .st-ignored           { background: #1a1a1a; color: #555; }
+
+/* ── n8n result badges (đồng nhất) ── */
+.n8n-badge    { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 600; white-space: nowrap; }
+.n8n-success  { background: #dcfce7; color: #15803d; }
+.n8n-error    { background: #fee2e2; color: #b91c1c; }
+.n8n-running  { background: #dbeafe; color: #1d4ed8; }
+html[data-theme="dark"] .n8n-success { background: #0a2a12; color: #4ade80; }
+html[data-theme="dark"] .n8n-error   { background: #2a0a0a; color: #f87171; }
+html[data-theme="dark"] .n8n-running { background: #0a1a3a; color: #60a5fa; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar         { width: 5px; height: 5px; }
+::-webkit-scrollbar-track   { background: transparent; }
+html:not([data-theme="dark"]) ::-webkit-scrollbar-thumb { background: #ccd0d8; border-radius: 3px; }
+html[data-theme="dark"]       ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }

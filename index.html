@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Autopost Admin</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    :root {
+  --bg:#f4f6f9; --surface:#ffffff; --surface2:#f4f6f9; --surface3:#eef1f6;
+  --border:#dde1e7; --border2:#e2e6ec; --text:#1a1d24; --text2:#374151;
+  --muted:#6b7280; --muted2:#9ca3af; --muted3:#c0c7d1;
+  --accent:#7c5cff; --accent-h:#6b4ef0;
+  --danger:#ef4444; --success:#22c55e; --warn:#f59e0b;
+  --fb:#1877f2; --x:#1da1f2; --tg:#2aabee; --ig:#e1306c;
+  --sidebar-w:248px;
+}
+
+    /* ── Login ── */
+    .login-screen { min-height:100vh; height:100%; display:flex; align-items:center; justify-content:center; }
+    .login-card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:40px; width:100%; max-width:380px; text-align:center; }
+    .login-card h2 { font-size:22px; font-weight:700; margin-bottom:6px; }
+    .login-card p { font-size:14px; color:var(--muted); margin-bottom:28px; }
+    .btn-google { background:#fff; color:#111; width:100%; display:flex; align-items:center; justify-content:center; gap:10px; padding:11px 16px; font-size:14px; border-radius:10px; border:none; cursor:pointer; }
+
+    /* ── App shell ── */
+    .app-layout { display:flex; min-height:100vh; overflow:hidden; }
+
+    /* ── Nav sidebar ── */
+    .nav-sb { width:196px; flex-shrink:0; background:#0d0d0d; border-right:1px solid #1e1e1e; display:flex; flex-direction:column; overflow:hidden; }
+    .nav-brand { padding:15px 14px 13px; border-bottom:1px solid #1e1e1e; display:flex; align-items:center; justify-content:space-between; }
+    .nav-logo { font-size:15px; font-weight:800; letter-spacing:-.5px; color:#e8e8e8; }
+    .nav-logo b { color:var(--accent); }
+    .nav-links { flex:1; padding:6px 6px 16px; overflow-y:auto; display:flex; flex-direction:column; gap:1px; }
+    .nav-link { display:flex; align-items:center; gap:7px; padding:7px 9px; border-radius:7px; text-decoration:none; color:#555; font-size:12px; transition:all .1s; white-space:nowrap; }
+    .nav-link:hover { background:#161616; color:#ccc; }
+    .nav-link.active { background:#1a1a2a; color:#a5b4fc; font-weight:500; }
+    .nav-footer { padding:12px 10px; border-top:1px solid #1e1e1e; display:flex; align-items:center; gap:8px; }
+    .nav-avatar { width:26px; height:26px; border-radius:50%; background:var(--surface2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; overflow:hidden; font-size:13px; flex-shrink:0; }
+    .nav-avatar img { width:100%; height:100%; object-fit:cover; }
+    .nav-user-info { flex:1; min-width:0; }
+    .nav-email { font-size:10px; color:#555; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .role-chip { padding:2px 7px; border-radius:4px; font-size:10px; font-weight:700; letter-spacing:.3px; }
+    .role-chip.admin  { background:#ede9fe; color:#7c3aed; }
+    .role-chip.editor { background:#dbeafe; color:#1d4ed8; }
+    .role-chip.viewer { background:var(--surface2); color:var(--muted); border:1px solid var(--border); }
+    html[data-theme="dark"] .role-chip.admin  { background:#1a1030; color:#a78bfa; }
+    html[data-theme="dark"] .role-chip.editor { background:#0a1a3a; color:#60a5fa; }
+    html[data-theme="dark"] .role-chip.viewer { background:#1a1a1a; color:#666; border-color:var(--border); }
+    .btn-logout { background:transparent; border:none; color:var(--muted); font-size:16px; cursor:pointer; padding:3px; border-radius:5px; flex-shrink:0; line-height:1; }
+    .btn-logout:hover { color:var(--text); background:var(--surface3); }
+    body[data-role="viewer"] .nav-admin,
+    body[data-role="editor"] .nav-admin { display:none; }
+    body[data-role="viewer"] .nav-editor { display:none; }
+
+    /* ── Main area ── */
+    .app-main { flex:1; overflow:auto; display:flex; flex-direction:column; background:var(--bg); }
+
+    /* ── Topbar ── */
+    .topbar { height:52px; background:var(--surface); border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 28px; gap:10px; position:sticky; top:0; z-index:100; }
+    .sep { flex:1; }
+
+    /* ── Dashboard body ── */
+    .dash { padding:28px 32px 48px; max-width:960px; width:100%; }
+
+    /* ── Greeting ── */
+    .greeting-row { display:flex; align-items:center; gap:16px; margin-bottom:28px; }
+    .greeting-avatar { width:52px; height:52px; border-radius:50%; background:var(--surface2); border:2px solid var(--border); overflow:hidden; display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0; }
+    .greeting-avatar img { width:100%; height:100%; object-fit:cover; }
+    .greeting-text { flex:1; }
+    .greeting-hello { font-size:13px; color:var(--muted); margin-bottom:2px; }
+    .greeting-name { font-size:22px; font-weight:700; letter-spacing:-.3px; }
+    .greeting-role { display:inline-flex; align-items:center; gap:5px; margin-top:5px; padding:3px 10px; border-radius:6px; font-size:12px; font-weight:600; }
+    .greeting-role.admin  { background:#ede9fe; color:#7c3aed; border:1px solid #ddd6fe; }
+    .greeting-role.editor { background:#dbeafe; color:#1d4ed8; border:1px solid #bfdbfe; }
+    .greeting-role.viewer { background:var(--surface2); color:var(--muted); border:1px solid var(--border); }
+    html[data-theme="dark"] .greeting-role.admin  { background:#1a1030; color:#a78bfa; border-color:#2d1f50; }
+    html[data-theme="dark"] .greeting-role.editor { background:#0a1a3a; color:#60a5fa; border-color:#1a3a60; }
+    html[data-theme="dark"] .greeting-role.viewer { background:#1a1a1a; color:#888; border-color:var(--border); }
+    .greeting-desc { font-size:12px; color:var(--muted); margin-top:4px; line-height:1.5; }
+
+    /* ── Stat cards ── */
+    .stats-row { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:28px; }
+    .stat-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px 18px; display:flex; flex-direction:column; gap:4px; transition:border-color .15s; }
+    .stat-card:hover { border-color:var(--border2); }
+    .stat-icon { font-size:18px; margin-bottom:4px; }
+    .stat-num { font-size:28px; font-weight:700; line-height:1; }
+    .stat-lbl { font-size:11px; color:var(--muted); margin-top:2px; }
+    .stat-card.pending .stat-num  { color:var(--warn); }
+    .stat-card.success .stat-num  { color:var(--success); }
+    .stat-card.error   .stat-num  { color:var(--danger); }
+    .stat-card.total   .stat-num  { color:var(--text); }
+
+    /* ── Section label ── */
+    .section-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.8px; color:var(--muted2); margin-bottom:10px; margin-top:24px; }
+
+    /* ── Action cards ── */
+    .cards-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+    .action-card { display:flex; align-items:center; gap:14px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px 18px; text-decoration:none; color:var(--text); transition:border-color .15s, background .15s, transform .1s; cursor:pointer; }
+    .action-card:hover { border-color:var(--accent); background:var(--surface2); transform:translateY(-1px); }
+    .action-card.featured { border-color:var(--accent); background:var(--surface); }
+    .action-card.featured:hover { background:var(--surface2); }
+    .action-card.fb-card:hover   { border-color:var(--fb); background:var(--surface2); }
+    .action-card.tg-card:hover   { border-color:var(--tg); background:var(--surface2); }
+    html[data-theme="dark"] .action-card:hover { background:#13131f; }
+    html[data-theme="dark"] .action-card.featured { background:#13131f; }
+    html[data-theme="dark"] .action-card.featured:hover { background:#16162a; }
+    html[data-theme="dark"] .action-card.fb-card:hover { background:#0d1520; }
+    html[data-theme="dark"] .action-card.tg-card:hover { background:#0a1a22; }
+    .action-icon { font-size:24px; width:40px; text-align:center; flex-shrink:0; }
+    .action-info { flex:1; min-width:0; }
+    .action-title { font-size:13px; font-weight:600; margin-bottom:2px; }
+    .action-desc { font-size:11px; color:var(--muted); line-height:1.4; }
+    .action-arrow { color:var(--muted2); font-size:16px; flex-shrink:0; transition:color .15s; }
+    .action-card:hover .action-arrow { color:var(--accent); }
+    .action-card.fb-card:hover .action-arrow { color:var(--fb); }
+    .action-card.tg-card:hover .action-arrow { color:var(--tg); }
+
+    /* role-specific visibility */
+    body[data-role="viewer"] .hide-viewer { display:none; }
+    body[data-role="editor"] .admin-only  { display:none; }
+    body[data-role="viewer"] .admin-only  { display:none; }
+
+    /* ── Viewer info panel ── */
+    .viewer-notice { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px 22px; display:flex; align-items:flex-start; gap:14px; margin-bottom:20px; }
+    .viewer-notice-icon { font-size:22px; flex-shrink:0; }
+    .viewer-notice-text h3 { font-size:14px; font-weight:600; margin-bottom:4px; }
+    .viewer-notice-text p { font-size:12px; color:var(--muted); line-height:1.6; }
+
+    /* loading skeleton */
+    .skeleton { background:linear-gradient(90deg,var(--surface2) 25%,var(--surface3) 50%,var(--surface2) 75%); background-size:200% 100%; animation:shimmer 1.2s infinite; border-radius:6px; }
+    @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+  </style>
+  <link rel="stylesheet" href="/shared.css" />
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginScreen" class="login-screen" style="display:none">
+  <div class="login-card">
+    <div style="font-size:36px;margin-bottom:16px">🚀</div>
+    <h2>Autopost Admin</h2>
+    <p>Đăng nhập để tiếp tục</p>
+    <button class="btn-google" id="btnGoogleLogin">
+      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 32.5 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.7-8 19.7-20 0-1.3-.1-2.7-.1-4z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 16 19 12 24 12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 16.1 4 9.3 8.4 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-1.9 13.5-5l-6.2-5.2C29.4 35.6 26.8 36 24 36c-5.2 0-9.6-3.4-11.2-8.1L6.2 33C9.2 39.5 16 44 24 44z"/><path fill="#1976D2" d="M43.6 20H24v8h11.3c-.8 2.3-2.3 4.3-4.3 5.8l6.2 5.2C41.2 35.5 44 30.2 44 24c0-1.3-.1-2.7-.4-4z"/></svg>
+      Đăng nhập bằng Google
+    </button>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="appScreen" style="display:none">
+  <div class="app-layout">
+
+    <!-- NAV SIDEBAR -->
+    <div class="nav-sb">
+      <div class="nav-brand">
+        <span class="nav-logo">Auto<b>post</b></span>
+        <button class="theme-toggle" id="themeToggleBtn" onclick="toggleTheme()" title="Đổi giao diện" style="margin-left:auto">🌙</button>
+      </div>
+            <nav class="nav-links">
+        <a class='nav-link active' href='/'>🏠 Home</a>
+        <div class="nav-group-label nav-editor">ĐĂNG BÀI</div>
+        <a class='nav-link nav-editor' href='/admin-execution'>✍️ Tạo bài đăng</a>
+        <a class='nav-link' href='/admin-fb-autopost'>📘 FB Autopost</a>
+        <a class='nav-link' href='/admin-tg-autopost'>✈️ TG Autopost</a>
+        <a class='nav-link' href='/admin-ig-thread-autopost'>📸 IG/Thread Autopost</a>
+        <div class="nav-group-label">THEO DÕI</div>
+        <a class='nav-link' href='/admin-jobs'>📋 Bài đăng</a>
+        <a class='nav-link nav-editor' href='/admin-stats'>📊 Thống kê</a>
+        <div class="nav-group-label">HỆ THỐNG</div>
+        <a class='nav-link nav-editor' href='/admin-pages'>📡 Page List</a>
+        <a class='nav-link nav-admin' href='/admin-users'>👥 Users</a>
+      </nav>
+      <div class="nav-footer">
+        <div class="nav-avatar" id="avatarWrap"></div>
+        <div class="nav-user-info">
+          <div class="nav-email" id="topbarEmail"></div>
+          <span id="topbarRole" class="role-chip"></span>
+        </div>
+        <button class="btn-logout" data-action="logout" title="Đăng xuất">⏻</button>
+      </div>
+    </div>
+
+    <!-- MAIN -->
+    <div class="app-main">
+      <div class="topbar">
+        <div class="topbar-crumb"><span class="crumb-root">Autopost</span><span class="crumb-sep">›</span><span class="crumb-page">Home</span></div>
+        <div class="sep"></div>
+      </div>
+
+      <div class="dash">
+
+        <!-- ── GREETING ── -->
+        <div class="greeting-row">
+          <div class="greeting-avatar" id="greetAvatar"></div>
+          <div class="greeting-text">
+            <div class="greeting-hello" id="greetHello">Xin chào,</div>
+            <div class="greeting-name" id="greetName">—</div>
+            <span class="greeting-role" id="greetRole"></span>
+            <div class="greeting-desc" id="greetDesc"></div>
+          </div>
+        </div>
+
+        <!-- ── STATS (admin + editor) ── -->
+        <div class="stats-row hide-viewer" id="statsRow">
+          <div class="stat-card pending">
+            <div class="stat-icon">⏳</div>
+            <div class="stat-num skeleton" id="sFbPend" style="width:40px;height:28px">&nbsp;</div>
+            <div class="stat-lbl">FB đang chờ</div>
+          </div>
+          <div class="stat-card pending">
+            <div class="stat-icon">✈️</div>
+            <div class="stat-num skeleton" id="sTgPend" style="width:40px;height:28px">&nbsp;</div>
+            <div class="stat-lbl">TG đang chờ</div>
+          </div>
+          <div class="stat-card success">
+            <div class="stat-icon">✅</div>
+            <div class="stat-num skeleton" id="sSuccToday" style="width:40px;height:28px">&nbsp;</div>
+            <div class="stat-lbl">Thành công hôm nay</div>
+          </div>
+          <div class="stat-card error">
+            <div class="stat-icon">⚠️</div>
+            <div class="stat-num skeleton" id="sErrors" style="width:40px;height:28px">&nbsp;</div>
+            <div class="stat-lbl">Cần xử lý lỗi</div>
+          </div>
+        </div>
+
+        <!-- ── VIEWER NOTICE ── -->
+        <div class="viewer-notice" id="viewerNotice" style="display:none">
+          <div class="viewer-notice-icon">👁️</div>
+          <div class="viewer-notice-text">
+            <h3>Chế độ Xem (Viewer)</h3>
+            <p>Bạn có thể xem báo cáo và thông tin hệ thống.<br>Liên hệ Admin để được cấp quyền Editor hoặc Admin.</p>
+          </div>
+        </div>
+
+        <!-- ── QUICK ACTIONS: EDITOR/ADMIN ── -->
+        <div class="hide-viewer">
+          <div class="section-label">✍️ Đăng bài</div>
+          <div class="cards-grid">
+            <a class='action-card featured' href='/admin-execution'>
+              <div class="action-icon">▶️</div>
+              <div class="action-info">
+                <div class="action-title">Tạo bài đăng</div>
+                <div class="action-desc">Chọn template → Chọn pages → Điền biến → Đăng</div>
+              </div>
+              <div class="action-arrow">›</div>
+            </a>
+            <a class='action-card fb-card' href='/admin-fb-autopost'>
+              <div class="action-icon">📘</div>
+              <div class="action-info">
+                <div class="action-title">FB Autopost</div>
+                <div class="action-desc">Quản lý hàng đợi đăng bài Facebook</div>
+              </div>
+              <div class="action-arrow">›</div>
+            </a>
+            <a class='action-card tg-card' href='/admin-tg-autopost'>
+              <div class="action-icon">✈️</div>
+              <div class="action-info">
+                <div class="action-title">TG Autopost</div>
+                <div class="action-desc">Quản lý hàng đợi đăng Telegram</div>
+              </div>
+              <div class="action-arrow">›</div>
+            </a>
+          </div>
+        </div>
+
+        <!-- ── THEO DÕI ── -->
+        <div class="section-label">📊 Theo dõi</div>
+        <div class="cards-grid">
+          <a class='action-card' href='/admin-jobs'>
+            <div class="action-icon">📋</div>
+            <div class="action-info">
+              <div class="action-title">Danh sách Bài đăng</div>
+              <div class="action-desc">Tất cả jobs · Lọc theo trạng thái</div>
+            </div>
+            <div class="action-arrow">›</div>
+          </a>
+          <a class='action-card' href='/admin-stats'>
+            <div class="action-icon">📊</div>
+            <div class="action-info">
+              <div class="action-title">Thống kê</div>
+              <div class="action-desc">Bài đăng theo ngày · Theo page · Token alerts</div>
+            </div>
+            <div class="action-arrow">›</div>
+          </a>
+          <a class='action-card' href='/admin-pages'>
+            <div class="action-icon">📡</div>
+            <div class="action-info">
+              <div class="action-title">Pages &amp; Tokens</div>
+              <div class="action-desc">Quản lý pages · Tokens · Cảnh báo hết hạn</div>
+            </div>
+            <div class="action-arrow">›</div>
+          </a>
+        </div>
+
+        <!-- ── HỆ THỐNG: Editor ── -->
+        <div class="hide-viewer">
+          <div class="section-label">⚙️ Hệ thống</div>
+          <div class="cards-grid">
+            <a class='action-card' href='/admin-bulk'>
+              <div class="action-icon">📥</div>
+              <div class="action-info">
+                <div class="action-title">Bulk Upload</div>
+                <div class="action-desc">Import hàng loạt pages · Quản lý templates</div>
+              </div>
+              <div class="action-arrow">›</div>
+            </a>
+            <a class='action-card admin-only' href='/admin-tokens'>
+              <div class="action-icon">🔐</div>
+              <div class="action-info">
+                <div class="action-title">Token Manager</div>
+                <div class="action-desc">Quản lý access tokens toàn bộ pages</div>
+              </div>
+              <div class="action-arrow">›</div>
+            </a>
+            <a class='action-card admin-only' href='/admin-keygen'>
+              <div class="action-icon">🔑</div>
+              <div class="action-info">
+                <div class="action-title">API Keys</div>
+                <div class="action-desc">Tạo key kết nối n8n với backend</div>
+              </div>
+              <div class="action-arrow">›</div>
+            </a>
+            <a class='action-card admin-only' href='/admin-users'>
+              <div class="action-icon">👥</div>
+              <div class="action-info">
+                <div class="action-title">Quản lý Users</div>
+                <div class="action-desc">Whitelist email · Phân quyền Admin/Editor/Viewer</div>
+              </div>
+              <div class="action-arrow">›</div>
+            </a>
+          </div>
+        </div>
+
+      </div><!-- /dash -->
+    </div><!-- /app-main -->
+
+  </div><!-- /app-layout -->
+</div>
+
+<script src="/shared.js"></script>
+<script src="/auth-guard.js"></script>
+<script>
+initAuthGuard({
+  page: null,
+  minRole: "viewer",
+  onReady: async ({ user, role, sb }) => {
+    renderGreeting(user, role);
+    if (role !== "viewer") {
+      await loadStats(sb);
+    } else {
+      document.getElementById("viewerNotice").style.display = "flex";
+    }
+  }
+});
+
+// ── Greeting ───────────────────────────────────────────────
+function renderGreeting(user, role) {
+  const hour = new Date().getHours();
+  const salute = hour < 12 ? "Chào buổi sáng" : hour < 18 ? "Chào buổi chiều" : "Chào buổi tối";
+
+  // Name from Google profile or email prefix
+  const meta = user?.user_metadata || {};
+  const fullName = meta.full_name || meta.name || (user?.email?.split("@")[0] || "bạn");
+  const firstName = fullName.split(" ").pop(); // last word = given name in Vietnamese
+
+  // Avatar
+  const avatarEl = document.getElementById("greetAvatar");
+  if (meta.avatar_url) {
+    avatarEl.innerHTML = `<img src="${meta.avatar_url}" alt="avatar" />`;
+  } else {
+    avatarEl.textContent = firstName.charAt(0).toUpperCase();
+  }
+
+  document.getElementById("greetHello").textContent = salute + ",";
+  document.getElementById("greetName").textContent  = fullName + "! 👋";
+
+  const roleMap = {
+    admin:  { label:"👑 Admin",  desc:"Bạn có toàn quyền quản trị hệ thống — tạo bài, quản lý pages, users và tokens." },
+    editor: { label:"✍️ Editor", desc:"Bạn có thể tạo và quản lý bài đăng, upload dữ liệu và theo dõi jobs." },
+    viewer: { label:"👁️ Viewer", desc:"Bạn có thể xem báo cáo, thống kê và thông tin pages." },
+  };
+  const info = roleMap[role] || roleMap.viewer;
+
+  const roleEl = document.getElementById("greetRole");
+  roleEl.textContent  = info.label;
+  roleEl.className    = `greeting-role ${role}`;
+  document.getElementById("greetDesc").textContent = info.desc;
+}
+
+// ── Stats ───────────────────────────────────────────────────
+async function loadStats(sb) {
+  // Mốc 00:00 hôm nay theo giờ LOCAL của trình duyệt, quy đổi đúng sang
+  // thời điểm UTC tương ứng — tránh lệch ngày do new Date().toISOString()
+  // luôn trả về ngày theo UTC (VN là UTC+7 nên sai lệch tới 7 giờ đầu mỗi ngày).
+  const now = new Date();
+  const todayStartISO = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).toISOString();
+
+  const [fbRes, tgRes, fbTodayRes, tgTodayRes, igTodayRes, fbErrRes, tgErrRes, igErrRes] = await Promise.all([
+    // FB pending
+    sb.from("fb_autopost_jobs").select("id", { count: "exact", head: true }).eq("status", "pending"),
+    // TG pending
+    sb.from("tg_autopost_jobs").select("id", { count: "exact", head: true }).eq("status", "pending"),
+    // FB success today
+    sb.from("fb_autopost_jobs").select("id", { count: "exact", head: true })
+      .eq("status", "success").gte("updated_at", todayStartISO),
+    // TG success today
+    sb.from("tg_autopost_jobs").select("id", { count: "exact", head: true })
+      .eq("status", "success").gte("updated_at", todayStartISO),
+    // IG/Thread success today
+    sb.from("ig_thread_autopost_jobs").select("id", { count: "exact", head: true })
+      .eq("status", "success").gte("updated_at", todayStartISO),
+    // FB errors
+    sb.from("fb_autopost_jobs").select("id", { count: "exact", head: true })
+      .in("status", ["error","error_link","error_video_large"]),
+    // TG errors + error_link
+    sb.from("tg_autopost_jobs").select("id", { count: "exact", head: true })
+      .in("status", ["error","error_link"]),
+    // IG/Thread errors + error_link
+    sb.from("ig_thread_autopost_jobs").select("id", { count: "exact", head: true })
+      .in("status", ["error","error_link"]),
+  ]);
+
+  const set = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) { el.textContent = val ?? 0; el.classList.remove("skeleton"); el.style.width = ""; el.style.height = ""; }
+  };
+
+  set("sFbPend",    fbRes.count  ?? 0);
+  set("sTgPend",    tgRes.count  ?? 0);
+  set("sSuccToday", (fbTodayRes.count ?? 0) + (tgTodayRes.count ?? 0) + (igTodayRes.count ?? 0));
+  set("sErrors",    (fbErrRes.count  ?? 0) + (tgErrRes.count  ?? 0) + (igErrRes.count ?? 0));
+}
+</script>
+</body>
+</html>

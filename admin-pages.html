@@ -1,0 +1,1371 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Autopost — Pages & Tokens</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+  --bg:#f4f6f9; --surface:#ffffff; --surface2:#f4f6f9; --surface3:#eef1f6;
+  --border:#dde1e7; --border2:#e2e6ec; --text:#1a1d24; --text2:#374151;
+  --muted:#6b7280; --muted2:#9ca3af; --muted3:#c0c7d1;
+  --accent:#7c5cff; --accent-h:#6b4ef0;
+  --danger:#ef4444; --success:#22c55e; --warn:#f59e0b;
+  --fb:#1877f2; --x:#1da1f2; --tg:#2aabee; --ig:#e1306c;
+  --sidebar-w:248px;
+}
+    body { font-family:system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+
+    /* ── topbar ── */
+    .topbar { height:52px; background:var(--surface); border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 24px; gap:12px; position:sticky; top:0; z-index:100; }
+    .logo { font-weight:700; font-size:15px; letter-spacing:-.3px; }
+    .logo span { color:var(--accent); }
+    .sep { flex:1; }
+    .topbar-user { font-size:13px; color:var(--muted); display:flex; align-items:center; gap:10px; }
+    .avatar { width:28px; height:28px; border-radius:50%; background:var(--surface2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; overflow:hidden; font-size:14px; }
+    .avatar img { width:100%; height:100%; object-fit:cover; }
+
+    /* ── login ── */
+    .login-screen { min-height:100vh; display:flex; align-items:center; justify-content:center; }
+    .login-card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:40px; width:100%; max-width:380px; text-align:center; }
+    .login-card h2 { font-size:22px; font-weight:700; margin-bottom:6px; }
+    .login-card p { font-size:14px; color:var(--muted); margin-bottom:28px; }
+    .btn-google { background:#fff; color:#111; width:100%; display:flex; align-items:center; justify-content:center; gap:10px; padding:11px 16px; font-size:14px; border-radius:10px; border:none; cursor:pointer; }
+
+    /* ── buttons ── */
+    .btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:8px; border:none; font-size:13px; font-weight:500; cursor:pointer; transition:background .15s,opacity .15s; }
+    .btn:disabled { opacity:.4; cursor:not-allowed; }
+    .btn-primary { background:var(--accent); color:#fff; }
+    .btn-primary:hover:not(:disabled) { background:var(--accent-h); }
+    .btn-ghost { background:transparent; color:var(--muted); border:1px solid var(--border); }
+    .btn-ghost:hover { background:var(--surface2); color:var(--text); }
+    .btn-danger { background:transparent; color:var(--danger); border:1px solid #3a1515; }
+    .btn-danger:hover { background:#fee2e2; }
+    html[data-theme="dark"] .btn-danger:hover { background:#2a0f0f; }
+    .btn-sm { padding:5px 10px; font-size:12px; }
+    .btn-xs { padding:3px 8px; font-size:11px; }
+    .btn-token { background:transparent; color:var(--warn); border:1px solid #3a2e00; font-size:11px; padding:4px 8px; border-radius:5px; cursor:pointer; }
+    .btn-token:hover { background:#fef3c7; }
+    html[data-theme="dark"] .btn-token:hover { background:#2a2000; }
+
+    /* ── layout ── */
+    .main { padding:28px 32px; max-width:1200px; margin:0 auto; }
+
+    /* ── tabs ── */
+    .tabs { display:flex; gap:4px; margin-bottom:24px; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:4px; width:fit-content; }
+    .tab { padding:7px 20px; border-radius:7px; font-size:13px; font-weight:500; cursor:pointer; color:var(--muted); border:none; background:transparent; transition:all .15s; }
+    .tab.active { background:var(--surface2); color:var(--text); border:1px solid var(--border2); }
+    .tab:hover:not(.active) { color:var(--text); }
+    .tab-panel { display:none; }
+    .tab-panel.active { display:block; }
+
+    /* ── stats ── */
+    .stats { display:grid; gap:10px; margin-bottom:24px; }
+    .stats.pages-stats { grid-template-columns:repeat(6,1fr); }
+    .stats.token-stats { grid-template-columns:repeat(5,1fr); }
+    .stat-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px 16px; }
+    .stat-label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
+    .stat-value { font-size:22px; font-weight:700; }
+    .stat-card.all .stat-value { color:var(--text); }
+    .stat-card.fb  .stat-value { color:var(--fb); }
+    .stat-card.th  .stat-value { color:#aaa; }
+    .stat-card.x   .stat-value { color:var(--x); }
+    .stat-card.tg  .stat-value { color:var(--tg); }
+    .stat-card.ig  .stat-value { color:var(--ig); }
+    .stat-card.green .stat-value { color:var(--success); }
+    .stat-card.warn  .stat-value { color:var(--warn); }
+    .stat-card.red   .stat-value { color:var(--danger); }
+
+    /* ── filters ── */
+    .filters { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px; align-items:center; }
+    .filter-group { display:flex; background:var(--surface); border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+    .filter-btn { padding:6px 12px; font-size:13px; background:transparent; border:none; color:var(--muted); cursor:pointer; transition:all .15s; white-space:nowrap; }
+    .filter-btn.active { background:var(--surface2); color:var(--text); font-weight:500; }
+    .filter-btn:hover:not(.active) { color:var(--text); }
+    .search-wrap { margin-left:auto; }
+    .search-input { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:6px 12px; color:var(--text); font-size:13px; outline:none; width:220px; }
+    .search-input:focus { border-color:var(--border2); }
+
+    /* ── pages table ── */
+    .table-wrap { background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden; overflow-x:auto; }
+    table { width:100%; border-collapse:collapse; }
+    thead th { padding:10px 16px; text-align:left; font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; border-bottom:1px solid var(--border); background:var(--surface2); }
+    tbody tr { border-bottom:1px solid var(--border); transition:background .1s; }
+    tbody tr:last-child { border-bottom:none; }
+    tbody tr:hover { background:var(--surface2); }
+    tbody td { padding:11px 16px; font-size:13px; vertical-align:middle; }
+    .row-actions { display:flex; gap:5px; opacity:0; transition:opacity .15s; }
+    tbody tr:hover .row-actions { opacity:1; }
+    /* batch toolbar */
+    .batch-toolbar { display:none; align-items:center; gap:10px; flex-wrap:wrap; background:#ede9fe; border:1px solid #ddd6fe; border-radius:8px; padding:10px 14px; margin-bottom:14px; font-size:13px; }
+    html[data-theme="dark"] .batch-toolbar { background:#1a1a2e; border-color:#4f52d460; }
+    .batch-toolbar.show { display:flex; }
+    .batch-toolbar input, .batch-toolbar select { background:var(--surface2); border:1px solid var(--border2); border-radius:6px; padding:5px 9px; color:var(--text); font-size:12px; min-width:130px; }
+    .batch-count { color:var(--accent); font-weight:600; white-space:nowrap; }
+    /* row checkbox */
+    .cb-cell { width:32px; text-align:center; }
+    input[type="checkbox"].row-cb { width:14px; height:14px; accent-color:var(--accent); cursor:pointer; }
+    tr.selected-row { background:#ede9fe; }
+    html[data-theme="dark"] tr.selected-row { background:#1a1a30; }
+
+    /* ── badges ── */
+    .platform-badge { display:inline-flex; align-items:center; gap:5px; padding:3px 8px; border-radius:5px; font-size:11px; font-weight:600; white-space:nowrap; }
+    .platform-badge.facebook  { background:#dbeafe; color:#1d4ed8; }
+    html[data-theme="dark"] .platform-badge.facebook { background:#0d2a5e; color:#60a5fa; }
+    .platform-badge.thread    { background:#f1f5f9; color:#64748b; }
+    html[data-theme="dark"] .platform-badge.thread { background:#1a1a1a; color:#aaa; border-color:#333; }
+    .platform-badge.x         { background:#e0f2fe; color:#0369a1; }
+    html[data-theme="dark"] .platform-badge.x { background:#0c2040; color:#60c4fa; }
+    .platform-badge.telegram  { background:#0a2a40; color:#38bdf8; }
+    .platform-badge.instagram { background:#3a1030; color:#f472b6; }
+    .platform-dot { width:7px; height:7px; border-radius:50%; display:inline-block; }
+    .platform-dot.facebook  { background:var(--fb); }
+    .platform-dot.thread    { background:#888; }
+    .platform-dot.x         { background:var(--x); }
+    .platform-dot.telegram  { background:var(--tg); }
+    .platform-dot.instagram { background:var(--ig); }
+    .status-active   { color:var(--success); font-size:12px; font-weight:500; }
+    .status-inactive { color:var(--muted); font-size:12px; font-weight:500; }
+    .group-chip { display:inline-block; padding:2px 8px; background:var(--surface2); border:1px solid var(--border2); border-radius:4px; font-size:11px; color:var(--muted); }
+    .token-count { display:inline-flex; align-items:center; gap:4px; padding:2px 7px; background:#2a2000; border:1px solid #3a2e00; border-radius:4px; font-size:11px; color:var(--warn); }
+    .token-expiring { background:#2a1000; border-color:#5a2000; color:#fb923c; }
+    .token-expired  { background:#2a0000; border-color:#5a0000; color:#f87171; }
+
+    /* ── token groups (tab 2) ── */
+    .page-group { background:var(--surface); border:1px solid var(--border); border-radius:12px; margin-bottom:14px; overflow:hidden; }
+    .page-group-header { display:flex; align-items:center; gap:12px; padding:14px 20px; cursor:pointer; user-select:none; transition:background .1s; }
+    .page-group-header:hover { background:var(--surface2); }
+    .pg-chevron { color:var(--muted); font-size:14px; transition:transform .2s; margin-left:auto; }
+    .pg-chevron.open { transform:rotate(90deg); }
+    .pg-platform { font-size:20px; width:28px; text-align:center; }
+    .pg-name { font-weight:600; font-size:14px; }
+    .pg-uid { font-family:monospace; font-size:11px; color:var(--muted); }
+    .pg-token-summary { display:flex; gap:6px; align-items:center; margin-left:auto; margin-right:12px; }
+    .pg-body { padding:14px 20px; border-top:1px solid var(--border); display:none; }
+    .pg-body.open { display:block; }
+    .token-grid { display:flex; flex-direction:column; gap:8px; }
+    .token-card { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:12px 14px; }
+    .token-card-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+    .token-card-name { font-weight:600; font-size:13px; display:flex; align-items:center; gap:6px; }
+    .token-type-badge { padding:2px 7px; border-radius:4px; font-size:10px; font-weight:600; background:var(--surface3); color:var(--muted); border:1px solid var(--border2); }
+    .token-val-row { display:flex; align-items:center; gap:8px; }
+    .token-masked { font-family:monospace; font-size:12px; color:var(--muted); background:var(--surface); padding:6px 10px; border-radius:6px; border:1px solid var(--border); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .token-expiry { font-size:11px; margin-top:6px; }
+    .token-expiry.ok   { color:var(--success); }
+    .token-expiry.warn { color:var(--warn); }
+    .token-expiry.expired { color:var(--danger); }
+    .token-note { font-size:11px; color:var(--muted2); margin-top:4px; font-style:italic; }
+    .add-token-row { margin-top:12px; padding-top:12px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; }
+    .empty-tokens { padding:24px; text-align:center; color:var(--muted); font-size:13px; }
+
+    /* ── modals ── */
+    .overlay { position:fixed; inset:0; background:rgba(0,0,0,.75); display:flex; align-items:center; justify-content:center; z-index:1000; padding:20px; backdrop-filter:blur(4px); }
+    .modal { background:var(--surface); border:1px solid var(--border); border-radius:14px; width:100%; box-shadow:0 20px 60px rgba(0,0,0,.5); display:flex; flex-direction:column; max-height:90vh; }
+    .modal-header { padding:20px 24px 0; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+    .modal-title { font-size:16px; font-weight:600; }
+    .modal-sub { font-size:12px; color:var(--muted); margin-top:2px; }
+    .modal-close { background:none; border:none; color:var(--muted); cursor:pointer; font-size:22px; line-height:1; padding:4px; }
+    .modal-close:hover { color:var(--text); }
+    .modal-body { padding:20px 24px; overflow-y:auto; flex:1; }
+    .modal-footer { padding:0 24px 20px; display:flex; gap:10px; justify-content:flex-end; flex-shrink:0; }
+    .modal-sm { max-width:520px; }
+    .modal-md { max-width:560px; }
+
+    /* ── form ── */
+    .form-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+    .field { display:flex; flex-direction:column; gap:6px; }
+    .field label { font-size:12px; color:var(--muted); font-weight:500; }
+    .field input,.field select,.field textarea { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:9px 12px; color:var(--text); font-size:13px; outline:none; width:100%; }
+    .field input:focus,.field select:focus,.field textarea:focus { border-color:var(--border2); }
+    .field select option { background:var(--surface2); }
+    .field .hint { font-size:11px; color:var(--muted2); }
+    .field textarea { resize:vertical; min-height:72px; font-family:monospace; }
+    .toggle-wrap { display:flex; align-items:center; justify-content:space-between; padding:4px 0; }
+    .toggle { position:relative; width:40px; height:22px; cursor:pointer; flex-shrink:0; }
+    .toggle input { opacity:0; width:0; height:0; }
+    .toggle-slider { position:absolute; inset:0; background:var(--border2); border-radius:22px; transition:.2s; }
+    .toggle-slider::before { content:""; position:absolute; height:16px; width:16px; left:3px; bottom:3px; background:#fff; border-radius:50%; transition:.2s; }
+    .toggle input:checked + .toggle-slider { background:var(--accent); }
+    .toggle input:checked + .toggle-slider::before { transform:translateX(18px); }
+
+    /* platform quick-fill chips */
+    .platform-fields { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:4px; }
+    .platform-fields p { font-size:12px; color:var(--muted); margin-bottom:8px; }
+    .field-chip { display:inline-block; padding:2px 8px; background:var(--surface3); border:1px solid var(--border2); border-radius:4px; font-size:11px; color:var(--muted); margin:2px; cursor:pointer; transition:background .1s; }
+    .field-chip:hover { background:var(--accent); color:#fff; border-color:var(--accent); }
+    .section-title { font-size:12px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:12px; margin-top:4px; display:flex; align-items:center; justify-content:space-between; }
+
+    /* confirm modal */
+    .confirm-desc { font-size:14px; color:var(--muted); line-height:1.6; }
+    .confirm-name { font-weight:600; color:var(--text); }
+
+    /* misc */
+    .empty { padding:60px 20px; text-align:center; color:var(--muted); }
+    .empty-icon { font-size:36px; margin-bottom:12px; }
+    .page-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; flex-wrap:wrap; gap:12px; }
+    .page-title { font-size:20px; font-weight:600; }
+
+    /* toast */
+    .toast { position:fixed; bottom:24px; right:24px; background:var(--surface2); border:1px solid var(--border2); border-radius:10px; padding:12px 16px; font-size:13px; z-index:9999; display:flex; align-items:center; gap:8px; box-shadow:0 8px 24px rgba(0,0,0,.4); transform:translateY(80px); opacity:0; transition:all .25s; pointer-events:none; max-width:340px; }
+    .toast.show { transform:translateY(0); opacity:1; }
+    .toast.success { border-left:3px solid var(--success); }
+    .toast.error   { border-left:3px solid var(--danger); }
+    .toast.warn    { border-left:3px solid var(--warn); }
+
+    @media(max-width:700px) {
+      .main { padding:16px; }
+      .stats.pages-stats { grid-template-columns:repeat(3,1fr); }
+      .stats.token-stats { grid-template-columns:repeat(3,1fr); }
+      .form-row { grid-template-columns:1fr; }
+      .search-input { width:100%; }
+    }
+
+    /* ── nav sidebar ── */
+    .nav-sb { width:196px; flex-shrink:0; background:#0d0d0d; border-right:1px solid #1e1e1e; display:flex; flex-direction:column; overflow:hidden; }
+    .nav-brand { padding:15px 14px 13px; border-bottom:1px solid #1e1e1e; }
+    .nav-logo { font-size:15px; font-weight:800; letter-spacing:-.5px; color:var(--text); }
+    .nav-logo b { color:var(--accent); }
+    .nav-links { flex:1; padding:7px 6px; overflow-y:auto; display:flex; flex-direction:column; gap:1px; }
+    .nav-link { display:flex; align-items:center; gap:7px; padding:7px 9px; border-radius:7px; text-decoration:none; color:#555; font-size:12px; transition:all .1s; white-space:nowrap; }
+    .nav-link:hover { background:#161616; color:#ccc; }
+    .nav-link.active { background:#1a1a2a; color:#a5b4fc; font-weight:500; }
+    .nav-sep { height:1px; background:#1e1e1e; margin:4px 0; }
+    body[data-role="viewer"] .nav-admin,
+    body[data-role="editor"] .nav-admin { display:none; }
+    body[data-role="viewer"] .nav-editor { display:none; }
+    .app-layout { display:flex; height:calc(100vh - 52px); overflow:hidden; }
+    .app-main { flex:1; overflow:auto; }
+  </style>
+  <link rel="stylesheet" href="/shared.css" />
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginScreen" class="login-screen" style="display:none">
+  <div class="login-card">
+    <div style="font-size:32px;margin-bottom:16px">📡</div>
+    <h2>Autopost</h2>
+    <p>Quản lý Pages & Tokens</p>
+    <button class="btn-google" id="btnGoogleLogin">
+      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 32.5 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.7-8 19.7-20 0-1.3-.1-2.7-.1-4z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 16 19 12 24 12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 16.1 4 9.3 8.4 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-1.9 13.5-5l-6.2-5.2C29.4 35.6 26.8 36 24 36c-5.2 0-9.6-3.4-11.2-8.1L6.2 33C9.2 39.5 16 44 24 44z"/><path fill="#1976D2" d="M43.6 20H24v8h11.3c-.8 2.3-2.3 4.3-4.3 5.8l6.2 5.2C41.2 35.5 44 30.2 44 24c0-1.3-.1-2.7-.4-4z"/></svg>
+      Đăng nhập bằng Google
+    </button>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="appScreen" style="display:none">
+  <div class="topbar">
+    <div class="topbar-crumb"><span class="crumb-root">Autopost</span><span class="crumb-sep">›</span><span class="crumb-page">Hệ thống · Page List</span></div>
+    <div class="sep"></div>
+    <div class="topbar-user">
+      <div class="avatar" id="avatarWrap"></div>
+      <span id="topbarEmail"></span>
+      <span id="topbarRole" style="font-size:11px;font-weight:600;padding:2px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;"></span>
+        <button class="btn btn-ghost" style="font-size:12px;padding:5px 10px" data-action="logout">Đăng xuất</button>
+    </div>
+  </div>
+
+  <div class="app-layout">
+    <!-- NAV SIDEBAR -->
+    <div class="nav-sb">
+      <div class="nav-brand"><span class="nav-logo">Auto<b>post</b></span><button class="theme-toggle" id="themeToggleBtn" onclick="toggleTheme()" title="Đổi giao diện" style="margin-left:auto">🌙</button></div>
+                  <nav class="nav-links">
+        <a class='nav-link' href='/'>🏠 Home</a>
+        <div class="nav-group-label nav-editor">ĐĂNG BÀI</div>
+        <a class='nav-link nav-editor' href='/admin-execution'>✍️ Tạo bài đăng</a>
+        <a class='nav-link' href='/admin-fb-autopost'>📘 FB Autopost</a>
+        <a class='nav-link' href='/admin-tg-autopost'>✈️ TG Autopost</a>
+        <a class='nav-link' href='/admin-ig-thread-autopost'>📸 IG/Thread Autopost</a>
+        <div class="nav-group-label">THEO DÕI</div>
+        <a class='nav-link' href='/admin-jobs'>📋 Bài đăng</a>
+        <a class='nav-link nav-editor' href='/admin-stats'>📊 Thống kê</a>
+        <div class="nav-group-label">HỆ THỐNG</div>
+        <a class='nav-link nav-editor active' href='/admin-pages'>📡 Page List</a>
+        <a class='nav-link nav-admin' href='/admin-users'>👥 Users</a>
+      </nav>
+    </div>
+
+  <div class="app-main">
+  <div class="main">
+    <div class="page-header">
+      <div class="page-title">📡 Pages & Tokens</div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost" id="btnExportCsv" onclick="exportPagesCSV()">⬇ Xuất CSV</button>
+        <a class="btn btn-ghost" href="/admin-bulk" id="btnUploadCsv">⬆ Upload CSV</a>
+        <button class="btn btn-primary" id="btnAddPage" onclick="openPageModal()">＋ Thêm Page</button>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('pages',this)">📡 Quản lý Pages</button>
+      <button class="tab" onclick="switchTab('tokens',this)">🔑 Tokens</button>
+    </div>
+
+    <!-- ══ TAB: PAGES ══ -->
+    <div id="tab-pages" class="tab-panel active">
+      <div class="stats pages-stats">
+        <div class="stat-card all"><div class="stat-label">Tất cả</div><div class="stat-value" id="stat-all">—</div></div>
+        <div class="stat-card fb"><div class="stat-label">Facebook</div><div class="stat-value" id="stat-facebook">—</div></div>
+        <div class="stat-card th"><div class="stat-label">Thread</div><div class="stat-value" id="stat-thread">—</div></div>
+        <div class="stat-card x"><div class="stat-label">X</div><div class="stat-value" id="stat-x">—</div></div>
+        <div class="stat-card tg"><div class="stat-label">Telegram</div><div class="stat-value" id="stat-telegram">—</div></div>
+        <div class="stat-card ig"><div class="stat-label">Instagram</div><div class="stat-value" id="stat-instagram">—</div></div>
+      </div>
+
+      <div class="filters">
+        <div class="filter-group" id="pfFilter">
+          <button class="filter-btn active" onclick="setFilter('platform','',this)">Tất cả</button>
+          <button class="filter-btn" onclick="setFilter('platform','facebook',this)">Facebook</button>
+          <button class="filter-btn" onclick="setFilter('platform','thread',this)">Thread</button>
+          <button class="filter-btn" onclick="setFilter('platform','x',this)">X</button>
+          <button class="filter-btn" onclick="setFilter('platform','telegram',this)">Telegram</button>
+          <button class="filter-btn" onclick="setFilter('platform','instagram',this)">Instagram</button>
+        </div>
+        <div class="filter-group" id="stFilter">
+          <button class="filter-btn active" onclick="setFilter('status','',this)">All</button>
+          <button class="filter-btn" onclick="setFilter('status','active',this)">Active</button>
+          <button class="filter-btn" onclick="setFilter('status','inactive',this)">Inactive</button>
+        </div>
+        <div class="search-wrap">
+          <input class="search-input" type="text" placeholder="🔍  Tên, UID, group..." id="searchInput" oninput="renderPageTable()" />
+        </div>
+      </div>
+
+      <!-- Batch toolbar -->
+      <div class="batch-toolbar" id="batchToolbar">
+        <span class="batch-count" id="batchCount">0 pages đã chọn</span>
+        <span style="color:var(--muted);font-size:12px">Cập nhật hàng loạt:</span>
+        <input type="text" id="batch-group" placeholder="Group…" list="batchGroupList" />
+        <datalist id="batchGroupList"></datalist>
+        <input type="text" id="batch-api" placeholder="API Token…" />
+        <input type="url"  id="batch-logo" placeholder="Logo URL…" />
+        <select id="batch-pic">
+          <option value="">-- PIC --</option>
+        </select>
+        <select id="batch-active">
+          <option value="">-- Trạng thái --</option>
+          <option value="true">Active</option>
+          <option value="false">Inactive</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="batchUpdatePages()">✔ Cập nhật</button>
+        <button class="btn btn-sm" style="background:#2a1f00;color:var(--warn);border:1px solid #5a3f00" onclick="openBatchTokenModal()">🔑 Token hàng loạt</button>
+        <button class="btn btn-ghost btn-sm" onclick="clearSelection()">✕ Bỏ chọn</button>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th class="cb-cell"><input type="checkbox" class="row-cb" id="selectAllCb" onchange="selectAllPages(this.checked)" title="Chọn tất cả"></th>
+              <th>Page Name</th>
+              <th>Platform</th>
+              <th>UID</th>
+              <th>Group</th>
+              <th>Logo</th>
+              <th>API Token</th>
+              <th>Tokens</th>
+              <th>Status</th>
+              <th style="width:130px"></th>
+            </tr>
+          </thead>
+          <tbody id="pageTableBody">
+            <tr><td colspan="10" class="empty"><div class="empty-icon">⏳</div><p>Đang tải...</p></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══ TAB: TOKENS ══ -->
+    <div id="tab-tokens" class="tab-panel">
+      <div class="stats token-stats">
+        <div class="stat-card all"><div class="stat-label">Tổng tokens</div><div class="stat-value" id="tstat-total">—</div></div>
+        <div class="stat-card green"><div class="stat-label">Active</div><div class="stat-value" id="tstat-active">—</div></div>
+        <div class="stat-card warn"><div class="stat-label">Sắp hết hạn</div><div class="stat-value" id="tstat-warn">—</div></div>
+        <div class="stat-card red"><div class="stat-label">Đã hết hạn</div><div class="stat-value" id="tstat-expired">—</div></div>
+        <div class="stat-card"><div class="stat-label">Không hạn</div><div class="stat-value" id="tstat-nolimit">—</div></div>
+      </div>
+
+      <div class="filters">
+        <div class="filter-group" id="tpfFilter">
+          <button class="filter-btn active" onclick="setTokenFilter('platform','',this)">Tất cả</button>
+          <button class="filter-btn" onclick="setTokenFilter('platform','facebook',this)">Facebook</button>
+          <button class="filter-btn" onclick="setTokenFilter('platform','thread',this)">Thread</button>
+          <button class="filter-btn" onclick="setTokenFilter('platform','x',this)">X</button>
+          <button class="filter-btn" onclick="setTokenFilter('platform','telegram',this)">Telegram</button>
+          <button class="filter-btn" onclick="setTokenFilter('platform','instagram',this)">Instagram</button>
+        </div>
+        <div class="filter-group" id="texFilter">
+          <button class="filter-btn active" onclick="setTokenFilter('expiry','',this)">All</button>
+          <button class="filter-btn" onclick="setTokenFilter('expiry','warn',this)">⚡ Sắp hết</button>
+          <button class="filter-btn" onclick="setTokenFilter('expiry','expired',this)">⛔ Hết hạn</button>
+          <button class="filter-btn" onclick="setTokenFilter('expiry','ok',this)">✅ Còn hạn</button>
+        </div>
+        <div class="search-wrap">
+          <input class="search-input" type="text" placeholder="🔍  Tên page, token name..." id="tokenSearch" oninput="renderTokenGroups()" />
+        </div>
+      </div>
+
+      <div id="tokenGroupsWrap">
+        <div class="empty"><div class="empty-icon">⏳</div><p>Đang tải...</p></div>
+      </div>
+    </div>
+  </div>
+  </div><!-- /app-main -->
+  </div><!-- /app-layout -->
+</div>
+
+<!-- ══ MODAL: Page ══ -->
+<div class="overlay" id="pageModal" style="display:none" onclick="if(event.target===this)closePageModal()">
+  <div class="modal modal-md">
+    <div class="modal-header">
+      <div><div class="modal-title" id="pageModalTitle">Thêm Page mới</div></div>
+      <button class="modal-close" onclick="closePageModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div class="form-row">
+          <div class="field"><label>Tên Page *</label><input id="f-page_name" type="text" placeholder="Fanpage ABC" /></div>
+          <div class="field"><label>Platform *</label>
+            <select id="f-platform" onchange="onPlatformChange()">
+              <option value="">-- Chọn --</option>
+              <option value="facebook">Facebook</option>
+              <option value="thread">Thread</option>
+              <option value="x">X (Twitter)</option>
+              <option value="telegram">Telegram</option>
+              <option value="instagram">Instagram</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field" id="f-uid-wrap"><label id="f-uid-label">Page UID</label><input id="f-page_uid" type="text" placeholder="123456789" /><span class="hint" id="f-uid-hint">ID của page trên platform — có thể bổ sung sau</span></div>
+          <div class="field"><label>Page Group</label><input id="f-page_group" type="text" placeholder="Brand A / Client B..." list="groupList" /><datalist id="groupList"></datalist></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>Logo URL</label><input id="f-logo_link" type="url" placeholder="https://…/logo.png" /><span class="hint">Link ảnh đại diện / logo trang</span></div>
+          <div class="field"><label>API Token</label><input id="f-api_url" type="text" placeholder="key_abc123…" /><span class="hint">API token / key riêng của page</span></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>PIC (người quản lý)</label>
+            <select id="f-pic">
+              <option value="">— Không chọn —</option>
+            </select>
+            <span class="hint">Người phụ trách kênh này — áp dụng cho mọi platform</span>
+          </div>
+        </div>
+
+        <!-- ✈️ Telegram-specific fields -->
+        <div id="tg-fields" style="display:none;border:1px solid #2aabee30;border-radius:10px;padding:14px 16px;background:#0a1520;display:none;flex-direction:column;gap:14px">
+          <div style="font-size:11px;font-weight:600;color:#2aabee;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">✈️ Telegram</div>
+          <div class="form-row">
+            <div class="field">
+              <label>Loại kênh *</label>
+              <select id="f-tg_type">
+                <option value="">-- Chọn --</option>
+                <option value="channel">📢 Channel</option>
+                <option value="group">👥 Group</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Link kênh</label>
+              <input id="f-tg_link" type="text" placeholder="https://t.me/tenkênh" />
+              <span class="hint">Link public của channel/group</span>
+            </div>
+          </div>
+          <div class="field">
+            <label>Link get bài default</label>
+            <input id="f-tg_default_link" type="text" placeholder="https://…" />
+            <span class="hint">URL nguồn bài đăng mặc định sẽ lấy nội dung từ đây</span>
+          </div>
+        </div>
+
+        <div class="toggle-wrap"><span style="font-size:13px">Kích hoạt (Active)</span><label class="toggle"><input type="checkbox" id="f-is_active" checked /><span class="toggle-slider"></span></label></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closePageModal()">Huỷ</button>
+      <button class="btn btn-primary" id="btnSavePage" onclick="savePage()">Lưu</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: Add/Edit Token ══ -->
+<div class="overlay" id="tokenFormModal" style="display:none" onclick="if(event.target===this)closeTokenFormModal()">
+  <div class="modal modal-md">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="tfModalTitle">Thêm token</div>
+        <div class="modal-sub" id="tfModalSub"></div>
+      </div>
+      <button class="modal-close" onclick="closeTokenFormModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="platformHints" class="platform-fields" style="margin-bottom:14px"></div>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div class="form-row">
+          <div class="field">
+            <label>Tên token *</label>
+            <input id="tf-name" type="text" placeholder="page_access_token" />
+            <span class="hint">Dùng snake_case để n8n đọc dễ</span>
+          </div>
+          <div class="field">
+            <label>Loại *</label>
+            <select id="tf-type">
+              <option value="access_token">access_token</option>
+              <option value="page_token">page_token</option>
+              <option value="bot_token">bot_token</option>
+              <option value="bearer_token">bearer_token</option>
+              <option value="api_key">api_key</option>
+              <option value="api_secret">api_secret</option>
+              <option value="refresh_token">refresh_token</option>
+              <option value="app_id">app_id</option>
+              <option value="app_secret">app_secret</option>
+              <option value="chat_id">chat_id</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label>Giá trị *</label>
+          <textarea id="tf-value" placeholder="Paste token value vào đây..."></textarea>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>Hết hạn</label><input id="tf-expires" type="datetime-local" /><span class="hint">Để trống = không hết hạn</span></div>
+          <div class="field"><label>Ghi chú</label><input id="tf-note" type="text" placeholder="Vd: Graph API v18" /></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeTokenFormModal()">Huỷ</button>
+      <button class="btn btn-primary" id="btnSaveToken" onclick="saveToken()">Lưu token</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: Batch Token ══ -->
+<div class="overlay" id="batchTokenModal" style="display:none" onclick="if(event.target===this)closeBatchTokenModal()">
+  <div class="modal" style="max-width:520px;width:100%">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">🔑 Thêm token hàng loạt</div>
+        <div class="modal-sub" id="btModalSub"></div>
+      </div>
+      <button class="modal-close" onclick="closeBatchTokenModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="background:#1a1a0d;border:1px solid #5a3f0050;border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--warn)">
+        ⚠ Token này sẽ được <strong>thêm mới</strong> vào tất cả pages đã chọn. Các token cũ <strong>không bị xoá</strong>.
+      </div>
+      <div id="btPageList" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px"></div>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div class="form-row">
+          <div class="field">
+            <label>Loại token *</label>
+            <select id="bt-type" onchange="onBtTypeChange()">
+              <option value="page_token">page_token</option>
+              <option value="access_token">access_token</option>
+              <option value="bot_token">bot_token</option>
+              <option value="bearer_token">bearer_token</option>
+              <option value="api_key">api_key</option>
+              <option value="api_secret">api_secret</option>
+              <option value="refresh_token">refresh_token</option>
+              <option value="app_id">app_id</option>
+              <option value="app_secret">app_secret</option>
+              <option value="chat_id">chat_id</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Tên token</label>
+            <input id="bt-name" type="text" placeholder="Tự động theo loại nếu để trống" oninput="this.dataset.auto='0'" />
+          </div>
+        </div>
+        <div class="field">
+          <label>Giá trị token *</label>
+          <textarea id="bt-value" placeholder="Paste token value vào đây…" style="min-height:80px"></textarea>
+          <span class="hint">Cùng 1 giá trị sẽ được gán cho tất cả pages đã chọn</span>
+        </div>
+        <div class="form-row">
+          <div class="field">
+            <label>Hết hạn</label>
+            <input id="bt-expires" type="datetime-local" oninput="onBtTypeChange()" />
+            <span class="hint">Để trống = không hết hạn</span>
+          </div>
+          <div class="field">
+            <label>Ghi chú</label>
+            <input id="bt-note" type="text" placeholder="Vd: Batch update 2026-06" />
+          </div>
+        </div>
+        <div style="background:var(--surface2);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--muted)">
+          <strong style="color:var(--text)" id="btSummaryCount">0 tokens</strong> sẽ được tạo
+          <span id="btSummaryExp"></span>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeBatchTokenModal()">Huỷ</button>
+      <button class="btn btn-primary" id="btnSaveBatchToken" onclick="saveBatchTokens()">🔑 Tạo tokens</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: Confirm ══ -->
+<div class="overlay" id="confirmModal" style="display:none" onclick="if(event.target===this)closeConfirm()">
+  <div class="modal modal-sm">
+    <div class="modal-header"><div class="modal-title">Xác nhận xoá</div><button class="modal-close" onclick="closeConfirm()">×</button></div>
+    <div class="modal-body"><p class="confirm-desc">Xoá <span class="confirm-name" id="confirmName"></span>?<br>Hành động này không thể hoàn tác.</p></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeConfirm()">Huỷ</button>
+      <button class="btn btn-danger" id="btnConfirmDel" onclick="confirmDelete()">Xoá</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/shared.js"></script>
+<script src="/auth-guard.js"></script>
+<script>
+const sb = getSB();
+
+const PLATFORM_TOKEN_FIELDS = {
+  facebook:  ["app_id","app_secret","page_access_token","user_access_token"],
+  thread:    ["access_token","user_id"],
+  x:         ["api_key","api_secret","access_token","access_token_secret","bearer_token"],
+  telegram:  ["bot_token","chat_id"],
+  instagram: ["access_token","instagram_business_account_id","app_secret"],
+};
+const PLATFORM_ICON = { facebook:"📘", thread:"🧵", x:"✖️", telegram:"✈️", instagram:"📸" };
+
+// ── State ────────────────────────────────────────────────────
+let allPages = [], allTokens = {};
+let allUsers = [];
+let currentUser = null;
+let editingPageId = null, editingTokenId = null;
+let activeTokenPageId = null, activeTokenPagePlatform = null;
+let deletingType = null, deletingId = null;
+let filters = { platform:"", status:"" };
+let tokenFilters = { platform:"", expiry:"" };
+
+// ── Auth ─────────────────────────────────────────────────────
+initAuthGuard({ page: "pages", onReady: ({ user }) => {
+  currentUser = user;
+  loadAll();
+}});
+
+// ── Load ─────────────────────────────────────────────────────
+async function loadAll() {
+  const [pRes, tRes, uRes] = await Promise.all([
+    sb.from("pages").select("*").order("platform").order("page_name"),
+    sb.from("page_tokens").select("id,page_id,token_name,token_type,token_value,expires_at,is_active,note"),
+    sb.rpc("get_users_with_roles"),
+  ]);
+  allPages = pRes.data ?? [];
+  allUsers = (uRes.data ?? []).filter(u => u.is_active);
+  allTokens = {};
+  (tRes.data ?? []).forEach(t => {
+    if (!allTokens[t.page_id]) allTokens[t.page_id] = [];
+    allTokens[t.page_id].push(t);
+  });
+  populatePicSelect();
+  updatePageStats();
+  updateTokenStats();
+  renderPageTable();
+  renderTokenGroups();
+  populateGroupList();
+}
+
+// ── Tab switching ─────────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+  document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
+  document.getElementById("tab-"+name).classList.add("active");
+  btn.classList.add("active");
+  // toggle add page / upload csv / export csv button visibility
+  document.getElementById("btnAddPage").style.display = name === "pages" ? "" : "none";
+  document.getElementById("btnUploadCsv").style.display = name === "pages" ? "" : "none";
+  document.getElementById("btnExportCsv").style.display = name === "pages" ? "" : "none";
+}
+
+// ── PAGE STATS ────────────────────────────────────────────────
+function updatePageStats() {
+  const active = allPages.filter(p => p.is_active);
+  document.getElementById("stat-all").textContent = active.length;
+  ["facebook","thread","x","telegram","instagram"].forEach(pl =>
+    document.getElementById("stat-"+pl).textContent = active.filter(p => p.platform===pl).length
+  );
+}
+
+function populateGroupList() {
+  const groups = [...new Set(allPages.map(p => p.page_group).filter(Boolean))];
+  document.getElementById("groupList").innerHTML = groups.map(g => `<option value="${g}">`).join("");
+}
+
+// ── Export CSV (kèm page_id để re-upload cập nhật chính xác theo ID) ──
+function csvCell(v) {
+  const s = v===null || v===undefined ? "" : String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+}
+function exportPagesCSV() {
+  if (!allPages.length) return toast("Chưa có page nào để xuất","error");
+  const headers = ["page_id","page_name","page_uid","platform","page_group","logo_link","api_token",
+    "is_active","tg_type","tg_link","tg_default_link","pic_email"];
+  const rows = [headers.join(",")];
+  allPages.forEach(p => {
+    rows.push([
+      p.id, p.page_name, p.page_uid, p.platform, p.page_group, p.logo_link, p.api_url,
+      p.is_active, p.tg_type, p.tg_link, p.tg_default_link, p.pic_email,
+    ].map(csvCell).join(","));
+  });
+  const blob = new Blob(["﻿"+rows.join("\n")], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `pages_export_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  toast(`Đã xuất ${allPages.length} pages ra CSV`, "success");
+}
+
+function populatePicSelect() {
+  const sel = document.getElementById("f-pic");
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— Không chọn —</option>' +
+    allUsers.map(u => `<option value="${esc(u.email)}">${esc(u.display_name || u.email)}</option>`).join("");
+  if (allUsers.some(u => u.email === cur)) sel.value = cur;
+}
+
+// ── PAGE FILTERS & TABLE ──────────────────────────────────────
+function setFilter(key, val, btn) {
+  filters[key] = val;
+  btn.parentElement.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  renderPageTable();
+}
+
+function renderPageTable() {
+  const q = document.getElementById("searchInput").value.toLowerCase();
+  const rows = allPages.filter(p => {
+    if (filters.platform && p.platform !== filters.platform) return false;
+    if (filters.status === "active"   && !p.is_active) return false;
+    if (filters.status === "inactive" &&  p.is_active) return false;
+    if (q) return [p.page_name,p.page_uid,p.page_group,p.api_url,p.logo_link,p.tg_link,p.tg_default_link,p.tg_type,p.pic_email].join(" ").toLowerCase().includes(q);
+    return true;
+  });
+
+  const tbody = document.getElementById("pageTableBody");
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="10" class="empty"><div class="empty-icon">📭</div><p>${allPages.length?"Không tìm thấy":"Chưa có page nào"}</p></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map(p => {
+    const tokens = (allTokens[p.id]??[]).filter(t=>t.is_active);
+    const expired  = tokens.filter(t => t.expires_at && new Date(t.expires_at) <= new Date());
+    const expiring = tokens.filter(t => t.expires_at && new Date(t.expires_at) > new Date() && new Date(t.expires_at) <= new Date(Date.now()+7*864e5));
+    const tokenBadge = tokens.length
+      ? `<span class="token-count ${expired.length?'token-expired':expiring.length?'token-expiring':''}">
+           ${expired.length?"⛔":expiring.length?"⚡":"🔑"} ${tokens.length}
+         </span>`
+      : `<span style="color:var(--muted2);font-size:12px">—</span>`;
+
+    const logoCell = p.logo_link
+      ? `<a href="${esc(p.logo_link)}" target="_blank" title="${esc(p.logo_link)}"><img src="${esc(p.logo_link)}" style="width:24px;height:24px;border-radius:4px;object-fit:cover;border:1px solid var(--border);vertical-align:middle" onerror="this.replaceWith('🖼️')"></a>`
+      : `<span style="color:var(--muted2)">—</span>`;
+
+    const apiCell = p.api_url
+      ? `<span style="font-family:monospace;font-size:11px;color:#60a5fa;cursor:pointer" title="${esc(p.api_url)}" onclick="navigator.clipboard.writeText('${esc(p.api_url)}');toast('Đã copy API Token','success')">${trunc(p.api_url,22)}</span>`
+      : `<span style="color:var(--muted2)">—</span>`;
+
+    // Telegram extra info shown under page name
+    const tgInfo = p.platform === "telegram" ? (() => {
+      const typeLabel = p.tg_type === "channel" ? "📢 Channel" : p.tg_type === "group" ? "👥 Group" : "";
+      const linkEl    = p.tg_link ? `<a href="${esc(p.tg_link)}" target="_blank" style="color:#2aabee;font-size:10px">${trunc(p.tg_link,28)}</a>` : "";
+      const defLink   = p.tg_default_link ? `<span style="color:var(--muted);font-size:10px" title="${esc(p.tg_default_link)}">↗ ${trunc(p.tg_default_link,24)}</span>` : "";
+      return [typeLabel, linkEl, defLink].filter(Boolean).join(" · ");
+    })() : "";
+
+    const isSelected = selectedPageIds.has(p.id);
+    return `<tr class="${isSelected?'selected-row':''}">
+      <td class="cb-cell"><input type="checkbox" class="row-cb" ${isSelected?'checked':''} onchange="toggleSelectPage('${p.id}',this.checked)"></td>
+      <td>
+        <div style="font-weight:500">${esc(p.page_name)}</div>
+        ${tgInfo ? `<div style="margin-top:3px;display:flex;align-items:center;gap:5px;flex-wrap:wrap">${tgInfo}</div>` : ""}
+        ${p.pic_email ? `<div style="margin-top:3px;font-size:11px;color:var(--muted)">👤 ${esc((allUsers.find(u=>u.email===p.pic_email)?.display_name) || p.pic_email)}</div>` : ""}
+      </td>
+      <td><span class="platform-badge ${p.platform}"><span class="platform-dot ${p.platform}"></span>${cap(p.platform)}</span></td>
+      <td><span style="font-family:monospace;font-size:12px;color:var(--muted)">${esc(p.page_uid)}</span></td>
+      <td>${p.page_group?`<span class="group-chip">${esc(p.page_group)}</span>`:`<span style="color:var(--muted2)">—</span>`}</td>
+      <td>${logoCell}</td>
+      <td>${apiCell}</td>
+      <td>${tokenBadge}</td>
+      <td><span class="${p.is_active?'status-active':'status-inactive'}">${p.is_active?"● Active":"○ Inactive"}</span></td>
+      <td>
+        <div class="row-actions">
+          <button class="btn-token" onclick="openTokenFormModal('${p.id}','${esc(p.page_name)}','${p.platform}')">🔑 Token</button>
+          <button class="btn btn-ghost btn-xs" onclick="openPageModal('${p.id}')">Sửa</button>
+          <button class="btn btn-danger btn-xs" onclick="openConfirm('page','${p.id}','${esc(p.page_name)}')">Xoá</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join("");
+}
+
+// ── BATCH SELECT / UPDATE ─────────────────────────────────────
+let selectedPageIds = new Set();
+
+function toggleSelectPage(id, checked) {
+  if (checked) selectedPageIds.add(id); else selectedPageIds.delete(id);
+  updateBatchToolbar();
+  // sync select-all checkbox
+  const visibleIds = getVisiblePageIds();
+  const allChecked = visibleIds.length > 0 && visibleIds.every(id => selectedPageIds.has(id));
+  const selAll = document.getElementById("selectAllCb");
+  if (selAll) { selAll.checked = allChecked; selAll.indeterminate = !allChecked && selectedPageIds.size > 0; }
+}
+
+function selectAllPages(checked) {
+  getVisiblePageIds().forEach(id => checked ? selectedPageIds.add(id) : selectedPageIds.delete(id));
+  updateBatchToolbar();
+  renderPageTable();
+}
+
+function clearSelection() {
+  selectedPageIds.clear();
+  updateBatchToolbar();
+  document.getElementById("selectAllCb").checked = false;
+  renderPageTable();
+}
+
+function getVisiblePageIds() {
+  const q = document.getElementById("searchInput").value.toLowerCase();
+  return allPages.filter(p => {
+    if (filters.platform && p.platform !== filters.platform) return false;
+    if (filters.status === "active"   && !p.is_active) return false;
+    if (filters.status === "inactive" &&  p.is_active) return false;
+    if (q) return [p.page_name,p.page_uid,p.page_group,p.api_url,p.logo_link,p.tg_link,p.tg_default_link,p.tg_type,p.pic_email].join(" ").toLowerCase().includes(q);
+    return true;
+  }).map(p => p.id);
+}
+
+function updateBatchToolbar() {
+  const n = selectedPageIds.size;
+  const toolbar = document.getElementById("batchToolbar");
+  toolbar.classList.toggle("show", n > 0);
+  document.getElementById("batchCount").textContent = `${n} page${n!==1?"s":""} đã chọn`;
+  // populate group datalist
+  const dl = document.getElementById("batchGroupList");
+  const groups = [...new Set(allPages.map(p=>p.page_group).filter(Boolean))];
+  dl.innerHTML = groups.map(g=>`<option value="${esc(g)}">`).join("");
+  // populate PIC select
+  const picSel = document.getElementById("batch-pic");
+  const curPic = picSel.value;
+  picSel.innerHTML = '<option value="">-- PIC --</option><option value="__clear__">— Bỏ PIC —</option>' +
+    allUsers.map(u => `<option value="${esc(u.email)}">${esc(u.display_name || u.email)}</option>`).join("");
+  picSel.value = curPic;
+}
+
+async function batchUpdatePages() {
+  const ids = [...selectedPageIds];
+  if (!ids.length) return;
+  const group  = document.getElementById("batch-group").value.trim();
+  const api    = document.getElementById("batch-api").value.trim();
+  const logo   = document.getElementById("batch-logo").value.trim();
+  const pic    = document.getElementById("batch-pic").value;
+  const active = document.getElementById("batch-active").value;
+
+  const payload = {};
+  if (group  !== "") payload.page_group = group || null;
+  if (api    !== "") payload.api_url    = api   || null;
+  if (logo   !== "") payload.logo_link  = logo  || null;
+  if (pic    !== "") payload.pic_email  = pic === "__clear__" ? null : pic;
+  if (active !== "") payload.is_active  = active === "true";
+
+  if (!Object.keys(payload).length) return toast("Chưa nhập trường nào để cập nhật", "error");
+
+  const sb = getSB();
+  const { error } = await sb.from("pages").update(payload).in("id", ids);
+  if (error) return toast(error.message, "error");
+
+  // Update local state
+  ids.forEach(id => {
+    const p = allPages.find(x => x.id === id);
+    if (p) Object.assign(p, payload);
+  });
+
+  // Reset fields
+  ["batch-group","batch-api","batch-logo"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("batch-pic").value = "";
+  document.getElementById("batch-active").value = "";
+
+  clearSelection();
+  renderPageTable();
+  toast(`Đã cập nhật ${ids.length} page`, "success");
+}
+
+// ── BATCH TOKEN MODAL ─────────────────────────────────────────
+function openBatchTokenModal() {
+  const ids = [...selectedPageIds];
+  if (!ids.length) return toast("Chưa chọn page nào", "error");
+  const pages = allPages.filter(p => ids.includes(p.id));
+
+  document.getElementById("btModalSub").textContent = `${ids.length} pages đã chọn`;
+  document.getElementById("btSummaryCount").textContent = `${ids.length} token`;
+  document.getElementById("btSummaryExp").textContent = "";
+
+  // Show page chips
+  document.getElementById("btPageList").innerHTML = pages.map(p =>
+    `<span style="font-size:11px;background:var(--surface2);border:1px solid var(--border2);border-radius:5px;padding:3px 8px;display:inline-flex;align-items:center;gap:4px">
+      <span class="platform-dot ${p.platform}" style="width:6px;height:6px;border-radius:50%;display:inline-block"></span>
+      ${esc(p.page_name)}
+    </span>`
+  ).join("");
+
+  // Reset form
+  ["bt-type","bt-name","bt-value","bt-expires","bt-note"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = id === "bt-type" ? "page_token" : "";
+  });
+  onBtTypeChange();
+
+  document.getElementById("batchTokenModal").style.display = "flex";
+}
+
+function closeBatchTokenModal() {
+  document.getElementById("batchTokenModal").style.display = "none";
+}
+
+function onBtTypeChange() {
+  const type = document.getElementById("bt-type").value;
+  const nameEl = document.getElementById("bt-name");
+  if (!nameEl.value || nameEl.dataset.auto === "1") {
+    nameEl.value = type;
+    nameEl.dataset.auto = "1";
+  }
+  // Update summary
+  const ids = [...selectedPageIds];
+  document.getElementById("btSummaryCount").textContent = `${ids.length} token (${type})`;
+  const exp = document.getElementById("bt-expires").value;
+  document.getElementById("btSummaryExp").textContent = exp
+    ? ` · hết hạn ${new Date(exp).toLocaleDateString("vi-VN")}`
+    : " · không hết hạn";
+}
+
+async function saveBatchTokens() {
+  const ids = [...selectedPageIds];
+  if (!ids.length) return;
+
+  const tokenType  = document.getElementById("bt-type").value;
+  const tokenName  = document.getElementById("bt-name").value.trim() || tokenType;
+  const tokenValue = document.getElementById("bt-value").value.trim();
+  const expires    = document.getElementById("bt-expires").value;
+  const note       = document.getElementById("bt-note").value.trim();
+
+  if (!tokenValue) return toast("Vui lòng nhập giá trị token", "error");
+
+  const btn = document.getElementById("btnSaveBatchToken");
+  btn.disabled = true; btn.textContent = "Đang lưu…";
+
+  const sb = getSB();
+  const { data: { user } } = await sb.auth.getUser();
+
+  const inserts = ids.map(pid => ({
+    user_id:     user.id,
+    page_id:     pid,
+    token_type:  tokenType,
+    token_name:  tokenName,
+    token_value: tokenValue,
+    expires_at:  expires ? new Date(expires).toISOString() : null,
+    notes:       note || null,
+    is_active:   true,
+  }));
+
+  const BATCH = 30;
+  let ok = 0, err = 0;
+  for (let i = 0; i < inserts.length; i += BATCH) {
+    const { data, error } = await sb.from("page_tokens").insert(inserts.slice(i, i+BATCH)).select("id,page_id");
+    if (error) { err += inserts.slice(i, i+BATCH).length; }
+    else {
+      ok += data?.length ?? 0;
+      // Update local allTokens
+      (data??[]).forEach(t => {
+        if (!allTokens[t.page_id]) allTokens[t.page_id] = [];
+        allTokens[t.page_id].push({ ...inserts.find(x=>x.page_id===t.page_id), id:t.id });
+      });
+    }
+  }
+
+  btn.disabled = false; btn.textContent = "🔑 Tạo tokens";
+  closeBatchTokenModal();
+  renderPageTable();
+  updateTokenStats();
+  if (err) toast(`${ok} token đã lưu, ${err} lỗi`, "error");
+  else toast(`✅ Đã thêm ${ok} tokens cho ${ids.length} pages`, "success");
+}
+
+// ── TOKEN STATS ────────────────────────────────────────────────
+function updateTokenStats() {
+  const all = Object.values(allTokens).flat().filter(t=>t.is_active);
+  const now = new Date();
+  const warn7 = new Date(Date.now()+7*864e5);
+  const expired  = all.filter(t => t.expires_at && new Date(t.expires_at) <= now);
+  const expiring = all.filter(t => t.expires_at && new Date(t.expires_at) > now && new Date(t.expires_at) <= warn7);
+  const nolimit  = all.filter(t => !t.expires_at);
+  document.getElementById("tstat-total").textContent   = all.length;
+  document.getElementById("tstat-active").textContent  = all.length - expired.length;
+  document.getElementById("tstat-warn").textContent    = expiring.length;
+  document.getElementById("tstat-expired").textContent = expired.length;
+  document.getElementById("tstat-nolimit").textContent = nolimit.length;
+}
+
+// ── TOKEN FILTERS & GROUPS ─────────────────────────────────────
+function setTokenFilter(key, val, btn) {
+  tokenFilters[key] = val;
+  btn.parentElement.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  renderTokenGroups();
+}
+
+function renderTokenGroups() {
+  const q   = document.getElementById("tokenSearch").value.toLowerCase();
+  const wrap = document.getElementById("tokenGroupsWrap");
+
+  let pages = allPages.filter(p => p.is_active);
+  if (tokenFilters.platform) pages = pages.filter(p => p.platform === tokenFilters.platform);
+
+  const now  = new Date();
+  const warn7 = new Date(Date.now()+7*864e5);
+
+  const filterToken = (t) => {
+    if (!t.is_active) return false;
+    if (tokenFilters.expiry === "expired") return t.expires_at && new Date(t.expires_at) <= now;
+    if (tokenFilters.expiry === "warn")    return t.expires_at && new Date(t.expires_at) > now && new Date(t.expires_at) <= warn7;
+    if (tokenFilters.expiry === "ok")      return !t.expires_at || new Date(t.expires_at) > warn7;
+    return true;
+  };
+
+  const filtered = pages
+    .map(p => ({ p, tokens: (allTokens[p.id]??[]).filter(filterToken) }))
+    .filter(({p, tokens}) => {
+      if (!tokens.length && tokenFilters.expiry) return false;
+      if (!q) return true;
+      const hay = [p.page_name, p.page_uid, ...tokens.map(t=>t.token_name+t.token_value)].join(" ").toLowerCase();
+      return hay.includes(q);
+    });
+
+  if (!filtered.length) {
+    wrap.innerHTML = `<div class="empty"><div class="empty-icon">🔒</div><p>Không có token nào</p></div>`;
+    return;
+  }
+
+  wrap.innerHTML = filtered.map(({p, tokens}) => {
+    const expired  = tokens.filter(t => t.expires_at && new Date(t.expires_at) <= now);
+    const expiring = tokens.filter(t => t.expires_at && new Date(t.expires_at) > now && new Date(t.expires_at) <= warn7);
+    const badgeStyle = expired.length ? "token-expired" : expiring.length ? "token-expiring" : "";
+
+    const tokenCards = tokens.length
+      ? tokens.map(t => {
+          const ei = expiryInfo(t.expires_at);
+          return `<div class="token-card">
+            <div class="token-card-header">
+              <div class="token-card-name">
+                ${esc(t.token_name)}
+                <span class="token-type-badge">${esc(t.token_type)}</span>
+              </div>
+              <div style="display:flex;gap:5px">
+                <button class="btn btn-ghost btn-xs" onclick="editTokenDirect('${p.id}','${esc(p.page_name)}','${p.platform}','${t.id}')">Sửa</button>
+                <button class="btn btn-danger btn-xs" onclick="openConfirm('token','${t.id}','${esc(t.token_name)}','${p.id}')">Xoá</button>
+              </div>
+            </div>
+            <div class="token-val-row">
+              <div class="token-masked" id="tv-${t.id}">${maskToken(t.token_value)}</div>
+              <button class="btn btn-ghost btn-xs" onclick="toggleReveal('${t.id}','${esc(t.token_value)}')">👁</button>
+              <button class="btn btn-ghost btn-xs" onclick="copyToken('${esc(t.token_value)}')">Copy</button>
+            </div>
+            ${ei ? `<div class="token-expiry ${ei.cls}">${ei.text}</div>` : ""}
+            ${t.note ? `<div class="token-note">📝 ${esc(t.note)}</div>` : ""}
+          </div>`;
+        }).join("")
+      : `<div class="empty-tokens">🔒 Chưa có token nào cho trang này</div>`;
+
+    return `<div class="page-group">
+      <div class="page-group-header" onclick="toggleGroup(this)">
+        <div class="pg-platform">${PLATFORM_ICON[p.platform]||"📄"}</div>
+        <div>
+          <div class="pg-name">${esc(p.page_name)}</div>
+          <div class="pg-uid">${esc(p.page_uid)}</div>
+        </div>
+        <div class="pg-token-summary">
+          ${tokens.length ? `<span class="token-count ${badgeStyle}">${expired.length?"⛔":expiring.length?"⚡":"🔑"} ${tokens.length}</span>` : `<span style="color:var(--muted2);font-size:12px">Chưa có token</span>`}
+        </div>
+        <span class="pg-chevron">›</span>
+      </div>
+      <div class="pg-body">
+        <div class="token-grid">${tokenCards}</div>
+        <div class="add-token-row">
+          <button class="btn btn-ghost btn-sm" onclick="openTokenFormModal('${p.id}','${esc(p.page_name)}','${p.platform}')">＋ Thêm token</button>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function toggleGroup(header) {
+  const body = header.nextElementSibling;
+  const chevron = header.querySelector(".pg-chevron");
+  const open = body.classList.toggle("open");
+  chevron.classList.toggle("open", open);
+}
+
+// ── PAGE MODAL ────────────────────────────────────────────────
+function onPlatformChange() {
+  const plat = document.getElementById("f-platform").value;
+  const tgBox = document.getElementById("tg-fields");
+  if (plat === "telegram") {
+    tgBox.style.display = "flex";
+    document.getElementById("f-uid-label").textContent = "Chat ID";
+    document.getElementById("f-uid-hint").textContent  = "Chat ID của channel/group (VD: -1001234567890) — có thể bổ sung sau";
+    document.getElementById("f-page_uid").placeholder  = "-1001234567890";
+  } else {
+    tgBox.style.display = "none";
+    document.getElementById("f-uid-label").textContent = "Page UID";
+    document.getElementById("f-uid-hint").textContent  = "ID của page trên platform — có thể bổ sung sau";
+    document.getElementById("f-page_uid").placeholder  = "123456789";
+  }
+}
+
+function openPageModal(id) {
+  editingPageId = id ?? null;
+  const p = id ? allPages.find(x=>x.id===id) : null;
+  document.getElementById("pageModalTitle").textContent = p ? "Chỉnh sửa Page" : "Thêm Page mới";
+  document.getElementById("f-page_name").value    = p?.page_name    ?? "";
+  document.getElementById("f-platform").value     = p?.platform     ?? "";
+  document.getElementById("f-page_uid").value     = p?.page_uid     ?? "";
+  document.getElementById("f-page_group").value   = p?.page_group   ?? "";
+  document.getElementById("f-logo_link").value    = p?.logo_link    ?? "";
+  document.getElementById("f-api_url").value      = p?.api_url      ?? "";
+  document.getElementById("f-tg_type").value      = p?.tg_type      ?? "";
+  document.getElementById("f-tg_link").value      = p?.tg_link      ?? "";
+  document.getElementById("f-tg_default_link").value = p?.tg_default_link ?? "";
+  document.getElementById("f-pic").value          = p?.pic_email     ?? "";
+  document.getElementById("f-is_active").checked  = p ? p.is_active : true;
+  onPlatformChange(); // show/hide TG fields based on platform
+  document.getElementById("pageModal").style.display = "flex";
+  setTimeout(() => document.getElementById("f-page_name").focus(), 50);
+}
+function closePageModal() { document.getElementById("pageModal").style.display = "none"; editingPageId = null; }
+
+async function savePage() {
+  const name     = document.getElementById("f-page_name").value.trim();
+  const platform = document.getElementById("f-platform").value;
+  const uid      = document.getElementById("f-page_uid").value.trim();
+  const group    = document.getElementById("f-page_group").value.trim();
+  const logo     = document.getElementById("f-logo_link").value.trim();
+  const api      = document.getElementById("f-api_url").value.trim();
+  const pic      = document.getElementById("f-pic").value || null;
+  const active   = document.getElementById("f-is_active").checked;
+  if (!name)     return toast("Nhập tên page","error");
+  if (!platform) return toast("Chọn platform","error");
+
+  const btn = document.getElementById("btnSavePage");
+  btn.disabled=true; btn.textContent="Đang lưu...";
+  try {
+    const isTg   = platform === "telegram";
+    const tgType = document.getElementById("f-tg_type").value || null;
+    const tgLink = document.getElementById("f-tg_link").value.trim() || null;
+    const tgDefaultLink = document.getElementById("f-tg_default_link").value.trim() || null;
+    const payload = {
+      page_name: name, platform, page_uid: uid||null, page_group: group||null,
+      logo_link: logo||null, api_url: api||null, is_active: active, pic_email: pic,
+      tg_type:         isTg ? tgType : null,
+      tg_link:         isTg ? tgLink : null,
+      tg_default_link: isTg ? tgDefaultLink : null,
+    };
+    if (editingPageId) {
+      const {error} = await sb.from("pages").update(payload).eq("id",editingPageId);
+      if (error) throw error;
+      toast("Đã cập nhật page","success");
+    } else {
+      const {error} = await sb.from("pages").insert({...payload, user_id:currentUser.id});
+      if (error) { if(error.code==="23505") throw new Error("UID này đã tồn tại trên platform đó"); throw error; }
+      toast("Đã thêm page mới","success");
+    }
+    closePageModal(); loadAll();
+  } catch(e) { toast(e.message,"error"); }
+  finally { btn.disabled=false; btn.textContent="Lưu"; }
+}
+
+// ── TOKEN FORM MODAL ──────────────────────────────────────────
+function openTokenFormModal(pageId, pageName, platform) {
+  activeTokenPageId = pageId;
+  activeTokenPagePlatform = platform;
+  editingTokenId = null;
+  document.getElementById("tfModalTitle").textContent = `＋ Thêm token — ${pageName}`;
+  document.getElementById("tfModalSub").textContent = cap(platform);
+  document.getElementById("tf-name").value = "";
+  document.getElementById("tf-type").value = "access_token";
+  document.getElementById("tf-value").value = "";
+  document.getElementById("tf-expires").value = "";
+  document.getElementById("tf-note").value = "";
+  document.getElementById("btnSaveToken").textContent = "Lưu token";
+  renderPlatformHints(platform);
+  document.getElementById("tokenFormModal").style.display = "flex";
+}
+
+function editTokenDirect(pageId, pageName, platform, tokenId) {
+  activeTokenPageId = pageId;
+  activeTokenPagePlatform = platform;
+  editingTokenId = tokenId;
+  const t = (allTokens[pageId]??[]).find(x=>x.id===tokenId);
+  if (!t) return;
+  document.getElementById("tfModalTitle").textContent = `Chỉnh sửa token — ${pageName}`;
+  document.getElementById("tfModalSub").textContent = cap(platform);
+  document.getElementById("tf-name").value = t.token_name;
+  document.getElementById("tf-type").value = t.token_type;
+  document.getElementById("tf-value").value = t.token_value;
+  document.getElementById("tf-expires").value = t.expires_at ? t.expires_at.slice(0,16) : "";
+  document.getElementById("tf-note").value = t.note ?? "";
+  document.getElementById("btnSaveToken").textContent = "Cập nhật";
+  renderPlatformHints(platform);
+  document.getElementById("tokenFormModal").style.display = "flex";
+}
+
+function closeTokenFormModal() { document.getElementById("tokenFormModal").style.display = "none"; editingTokenId = null; }
+
+function renderPlatformHints(platform) {
+  const fields = PLATFORM_TOKEN_FIELDS[platform] ?? [];
+  const el = document.getElementById("platformHints");
+  if (!fields.length) { el.style.display="none"; return; }
+  el.style.display="block";
+  el.innerHTML = `<p>💡 Click để điền nhanh tên token cho ${cap(platform)}:</p>
+    ${fields.map(f=>`<span class="field-chip" onclick="quickFill('${f}')">${f}</span>`).join("")}`;
+}
+
+function quickFill(name) {
+  document.getElementById("tf-name").value = name;
+  const typeMap = { app_id:"app_id", app_secret:"app_secret", bot_token:"bot_token",
+    bearer_token:"bearer_token", api_key:"api_key", api_secret:"api_secret",
+    chat_id:"chat_id", refresh_token:"refresh_token" };
+  const matched = Object.keys(typeMap).find(k => name.includes(k));
+  if (matched) document.getElementById("tf-type").value = typeMap[matched];
+  else if (name.includes("access_token")) document.getElementById("tf-type").value = "access_token";
+  else if (name.includes("page")) document.getElementById("tf-type").value = "page_token";
+  document.getElementById("tf-value").focus();
+}
+
+async function saveToken() {
+  const name    = document.getElementById("tf-name").value.trim();
+  const type    = document.getElementById("tf-type").value;
+  const value   = document.getElementById("tf-value").value.trim();
+  const expires = document.getElementById("tf-expires").value;
+  const note    = document.getElementById("tf-note").value.trim();
+  if (!name)  return toast("Nhập tên token","error");
+  if (!value) return toast("Nhập giá trị token","error");
+
+  const btn = document.getElementById("btnSaveToken");
+  btn.disabled=true; btn.textContent="Đang lưu...";
+  try {
+    const payload = {
+      page_id:activeTokenPageId, user_id:currentUser.id,
+      token_name:name, token_type:type, token_value:value,
+      expires_at:expires?new Date(expires).toISOString():null,
+      note:note||null, is_active:true,
+    };
+    if (editingTokenId) {
+      const {error} = await sb.from("page_tokens").update(payload).eq("id",editingTokenId);
+      if (error) throw error;
+      toast("Đã cập nhật token","success");
+    } else {
+      const {error} = await sb.from("page_tokens").insert(payload);
+      if (error) throw error;
+      toast("Đã thêm token","success");
+    }
+    closeTokenFormModal();
+    const {data} = await sb.from("page_tokens").select("id,page_id,token_name,token_type,token_value,expires_at,is_active,note").eq("page_id",activeTokenPageId);
+    allTokens[activeTokenPageId] = data ?? [];
+    updateTokenStats();
+    renderPageTable();
+    renderTokenGroups();
+  } catch(e) { toast(e.message,"error"); }
+  finally { btn.disabled=false; btn.textContent=editingTokenId?"Cập nhật":"Lưu token"; }
+}
+
+// ── CONFIRM / DELETE ──────────────────────────────────────────
+let deletingPageId = null;
+function openConfirm(type, id, name, pageId=null) {
+  deletingType=type; deletingId=id; deletingPageId=pageId;
+  document.getElementById("confirmName").textContent = `"${name}"`;
+  document.getElementById("confirmModal").style.display = "flex";
+}
+function closeConfirm() { document.getElementById("confirmModal").style.display="none"; deletingId=null; deletingType=null; }
+
+async function confirmDelete() {
+  const btn=document.getElementById("btnConfirmDel");
+  btn.disabled=true; btn.textContent="Đang xoá...";
+  try {
+    if (deletingType==="page") {
+      const {error}=await sb.from("pages").delete().eq("id",deletingId);
+      if (error) throw error;
+      toast("Đã xoá page","success");
+      closeConfirm(); loadAll();
+    } else {
+      const pid = deletingPageId || activeTokenPageId;
+      const {error}=await sb.from("page_tokens").delete().eq("id",deletingId);
+      if (error) throw error;
+      toast("Đã xoá token","success");
+      if (pid) {
+        const {data}=await sb.from("page_tokens").select("id,page_id,token_name,token_type,token_value,expires_at,is_active,note").eq("page_id",pid);
+        allTokens[pid] = data ?? [];
+      }
+      closeConfirm();
+      updateTokenStats();
+      renderPageTable();
+      renderTokenGroups();
+    }
+  } catch(e) { toast(e.message,"error"); }
+  finally { btn.disabled=false; btn.textContent="Xoá"; }
+}
+
+// ── HELPERS ───────────────────────────────────────────────────
+function maskToken(val) {
+  if (!val || val.length < 8) return "••••••••";
+  return val.slice(0,6) + "•".repeat(Math.min(val.length-10,20)) + val.slice(-4);
+}
+
+function expiryInfo(expiresAt) {
+  if (!expiresAt) return null;
+  const diff = new Date(expiresAt) - new Date();
+  const days = Math.floor(diff/864e5);
+  if (diff <= 0)  return { cls:"expired", text:`⛔ Đã hết hạn ${Math.abs(days)} ngày trước` };
+  if (days <= 7)  return { cls:"warn",    text:`⚡ Hết hạn sau ${days} ngày` };
+  if (days <= 30) return { cls:"warn",    text:`⚠️ Hết hạn sau ${days} ngày` };
+  return { cls:"ok", text:`✅ Còn hạn đến ${new Date(expiresAt).toLocaleDateString("vi-VN")}` };
+}
+
+function toggleReveal(id, val) {
+  const el = document.getElementById(`tv-${id}`);
+  el.textContent = el.textContent.includes("•") ? val : maskToken(val);
+}
+
+function copyToken(val) {
+  navigator.clipboard.writeText(val);
+  toast("Đã copy token","success");
+}
+
+document.addEventListener("keydown", e => {
+  if (e.key==="Escape") { closePageModal(); closeTokenFormModal(); closeConfirm(); }
+});
+
+let toastTimer;
+function toast(msg, type="success") {
+  const el = document.getElementById("toast");
+  el.textContent = (type==="success"?"✓  ":"✕  ") + msg;
+  el.className = `toast ${type} show`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 3000);
+}
+function esc(s) { return (s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function cap(s) { return s?s[0].toUpperCase()+s.slice(1):""; }
+function trunc(s,n) { return s&&s.length>n?s.slice(0,n)+"…":s; }
+</script>
+</body>
+</html>
