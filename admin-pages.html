@@ -410,10 +410,31 @@
         </div>
       </div>
 
+      <!-- Batch toolbar -->
+      <div class="batch-toolbar" id="tokenBatchToolbar">
+        <span class="batch-count" id="tokenBatchCount">0 token đã chọn</span>
+        <span style="color:var(--muted);font-size:12px">Cập nhật hàng loạt:</span>
+        <input type="text" id="tbatch-name" placeholder="Token Name…" />
+        <select id="tbatch-type">
+          <option value="">-- Type --</option>
+          <option value="page_token">page_token</option>
+          <option value="access_token">access_token</option>
+          <option value="bot_token">bot_token</option>
+          <option value="app_id">app_id</option>
+          <option value="api_token">api_token</option>
+          <option value="bearer_token">bearer_token</option>
+        </select>
+        <input type="date" id="tbatch-expires" title="Ngày hết hạn" />
+        <input type="text" id="tbatch-note" placeholder="Ghi chú…" />
+        <button class="btn btn-primary btn-sm" onclick="batchUpdateTokens()">✔ Cập nhật</button>
+        <button class="btn btn-ghost btn-sm" onclick="clearTokenSelection()">✕ Bỏ chọn</button>
+      </div>
+
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
+              <th class="cb-cell"><input type="checkbox" class="row-cb" id="selectAllTokenCb" onchange="selectAllTokens(this.checked)" title="Chọn tất cả"></th>
               <th>Page</th>
               <th>Platform</th>
               <th>Token Name</th>
@@ -425,7 +446,7 @@
             </tr>
           </thead>
           <tbody id="tokenTableBody">
-            <tr><td colspan="8" class="empty"><div class="empty-icon">⏳</div><p>Đang tải...</p></td></tr>
+            <tr><td colspan="9" class="empty"><div class="empty-icon">⏳</div><p>Đang tải...</p></td></tr>
           </tbody>
         </table>
       </div>
@@ -831,6 +852,7 @@ function renderPageTable() {
 
 // ── BATCH SELECT / UPDATE ─────────────────────────────────────
 let selectedPageIds = new Set();
+let selectedTokenIds = new Set();
 
 function toggleSelectPage(id, checked) {
   if (checked) selectedPageIds.add(id); else selectedPageIds.delete(id);
@@ -1072,7 +1094,7 @@ function renderTokenGroups() {
     });
 
   if (!filtered.length) {
-    body.innerHTML = `<tr><td colspan="8" class="empty"><div class="empty-icon">🔒</div><p>Không có token nào</p></td></tr>`;
+    body.innerHTML = `<tr><td colspan="9" class="empty"><div class="empty-icon">🔒</div><p>Không có token nào</p></td></tr>`;
     return;
   }
 
@@ -1086,6 +1108,7 @@ function renderTokenGroups() {
 
     if (!tokens.length) {
       return `<tr>
+        <td class="cb-cell"></td>
         ${pageCell}
         <td colspan="4" style="color:var(--muted2)">— Chưa có token —</td>
         <td></td>
@@ -1095,7 +1118,9 @@ function renderTokenGroups() {
 
     return tokens.map((t, i) => {
       const ei = expiryInfo(t.expires_at);
-      return `<tr>
+      const isSel = selectedTokenIds.has(t.id);
+      return `<tr class="${isSel?'selected-row':''}">
+        <td class="cb-cell"><input type="checkbox" class="row-cb" data-tid="${t.id}" ${isSel?'checked':''} onchange="toggleSelectToken('${t.id}',this.checked)"></td>
         ${i === 0 ? pageCell : ""}
         <td style="white-space:nowrap">${esc(t.token_name)}</td>
         <td><span class="token-type-badge">${esc(t.token_type)}</span></td>
@@ -1118,6 +1143,80 @@ function renderTokenGroups() {
       </tr>`;
     }).join("");
   }).join("");
+
+  // Bỏ chọn các token không còn hiển thị sau khi lọc/tìm kiếm, để "n token đã chọn"
+  // luôn khớp với số checkbox thực sự đang tick trên màn hình.
+  const visibleTokenIds = new Set(filtered.flatMap(({tokens}) => tokens.map(t => t.id)));
+  [...selectedTokenIds].forEach(id => { if (!visibleTokenIds.has(id)) selectedTokenIds.delete(id); });
+  updateTokenBatchToolbar();
+}
+
+// ── TOKEN BATCH SELECT & UPDATE ─────────────────────────────────
+function getVisibleTokenIds() {
+  const ids = [];
+  document.querySelectorAll('#tokenTableBody input.row-cb[data-tid]').forEach(cb => ids.push(cb.dataset.tid));
+  return ids;
+}
+
+function toggleSelectToken(id, checked) {
+  if (checked) selectedTokenIds.add(id); else selectedTokenIds.delete(id);
+  updateTokenBatchToolbar();
+}
+
+function selectAllTokens(checked) {
+  getVisibleTokenIds().forEach(id => checked ? selectedTokenIds.add(id) : selectedTokenIds.delete(id));
+  renderTokenGroups();
+}
+
+function updateTokenBatchToolbar() {
+  const n = selectedTokenIds.size;
+  const toolbar = document.getElementById("tokenBatchToolbar");
+  toolbar.classList.toggle("show", n > 0);
+  document.getElementById("tokenBatchCount").textContent = `${n} token đã chọn`;
+  const selAll = document.getElementById("selectAllTokenCb");
+  const visibleIds = getVisibleTokenIds();
+  if (selAll) {
+    const allChecked = visibleIds.length > 0 && visibleIds.every(id => selectedTokenIds.has(id));
+    selAll.checked = allChecked;
+    selAll.indeterminate = !allChecked && n > 0;
+  }
+}
+
+function clearTokenSelection() {
+  selectedTokenIds.clear();
+  renderTokenGroups();
+}
+
+async function batchUpdateTokens() {
+  const ids = [...selectedTokenIds];
+  if (!ids.length) return;
+  const name    = document.getElementById("tbatch-name").value.trim();
+  const type    = document.getElementById("tbatch-type").value;
+  const expires = document.getElementById("tbatch-expires").value;
+  const note    = document.getElementById("tbatch-note").value.trim();
+
+  const payload = {};
+  if (name    !== "") payload.token_name = name;
+  if (type    !== "") payload.token_type = type;
+  if (expires !== "") payload.expires_at = new Date(expires).toISOString();
+  if (note    !== "") payload.note       = note;
+
+  if (!Object.keys(payload).length) return toast("Chưa nhập trường nào để cập nhật", "error");
+
+  const sb = getSB();
+  const { error } = await sb.from("page_tokens").update(payload).in("id", ids);
+  if (error) return toast(error.message, "error");
+
+  // Update local state
+  Object.values(allTokens).flat().forEach(t => { if (ids.includes(t.id)) Object.assign(t, payload); });
+
+  ["tbatch-name","tbatch-expires","tbatch-note"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("tbatch-type").value = "";
+
+  selectedTokenIds.clear();
+  renderTokenGroups();
+  updateTokenStats();
+  toast(`Đã cập nhật ${ids.length} token`, "success");
 }
 
 // ── PAGE MODAL ────────────────────────────────────────────────
