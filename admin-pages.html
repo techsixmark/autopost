@@ -70,7 +70,8 @@
     .stat-value { font-size:22px; font-weight:700; }
     .stat-card.all .stat-value { color:var(--text); }
     .stat-card.fb  .stat-value { color:var(--fb); }
-    .stat-card.th  .stat-value { color:#aaa; }
+    .stat-card.th  .stat-value { color:#64748b; }
+    html[data-theme="dark"] .stat-card.th .stat-value { color:#94a3b8; }
     .stat-card.x   .stat-value { color:var(--x); }
     .stat-card.tg  .stat-value { color:var(--tg); }
     .stat-card.ig  .stat-value { color:var(--ig); }
@@ -91,11 +92,11 @@
     /* ── pages table ── */
     .table-wrap { background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden; overflow-x:auto; }
     table { width:100%; border-collapse:collapse; }
-    thead th { padding:10px 16px; text-align:left; font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; border-bottom:1px solid var(--border); background:var(--surface2); }
+    thead th { padding:10px 9px; text-align:left; font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; border-bottom:1px solid var(--border); background:var(--surface2); }
     tbody tr { border-bottom:1px solid var(--border); transition:background .1s; }
     tbody tr:last-child { border-bottom:none; }
     tbody tr:hover { background:var(--surface2); }
-    tbody td { padding:11px 16px; font-size:13px; vertical-align:middle; }
+    tbody td { padding:11px 9px; font-size:13px; vertical-align:middle; }
     .row-actions { display:flex; gap:5px; opacity:0; transition:opacity .15s; }
     tbody tr:hover .row-actions { opacity:1; }
     /* batch toolbar */
@@ -369,7 +370,7 @@
               <th>API Token</th>
               <th>Tokens</th>
               <th>Status</th>
-              <th style="width:130px"></th>
+              <th style="width:96px"></th>
             </tr>
           </thead>
           <tbody id="pageTableBody">
@@ -709,10 +710,12 @@ function csvCell(v) {
 }
 function exportPagesCSV() {
   if (!allPages.length) return toast("Chưa có page nào để xuất","error");
+  if (!selectedPageIds.size) return toast("Hãy chọn ít nhất 1 page để xuất CSV","error");
+  const toExport = allPages.filter(p => selectedPageIds.has(p.id));
   const headers = ["page_id","page_name","page_uid","platform","page_group","logo_link","api_token",
     "is_active","tg_type","tg_link","tg_default_link","pic_email"];
   const rows = [headers.join(",")];
-  allPages.forEach(p => {
+  toExport.forEach(p => {
     rows.push([
       p.id, p.page_name, p.page_uid, p.platform, p.page_group, p.logo_link, p.api_url,
       p.is_active, p.tg_type, p.tg_link, p.tg_default_link, p.pic_email,
@@ -723,7 +726,7 @@ function exportPagesCSV() {
   a.href = URL.createObjectURL(blob);
   a.download = `pages_export_${new Date().toISOString().slice(0,10)}.csv`;
   a.click();
-  toast(`Đã xuất ${allPages.length} pages ra CSV`, "success");
+  toast(`Đã xuất ${toExport.length} pages ra CSV`, "success");
 }
 
 function populatePicSelect() {
@@ -773,7 +776,7 @@ function renderPageTable() {
       : `<span style="color:var(--muted2)">—</span>`;
 
     const apiCell = p.api_url
-      ? `<span style="font-family:monospace;font-size:11px;color:#60a5fa;cursor:pointer" title="${esc(p.api_url)}" onclick="navigator.clipboard.writeText('${esc(p.api_url)}');toast('Đã copy API Token','success')">${trunc(p.api_url,22)}</span>`
+      ? `<span style="font-family:monospace;font-size:11px;color:#60a5fa;cursor:pointer;white-space:nowrap" title="${esc(p.api_url)}" onclick="navigator.clipboard.writeText('${esc(p.api_url)}');toast('Đã copy API Token','success')">${trunc(p.api_url,12)}</span>`
       : `<span style="color:var(--muted2)">—</span>`;
 
     // Telegram extra info shown under page name
@@ -787,23 +790,23 @@ function renderPageTable() {
     const isSelected = selectedPageIds.has(p.id);
     return `<tr class="${isSelected?'selected-row':''}">
       <td class="cb-cell"><input type="checkbox" class="row-cb" ${isSelected?'checked':''} onchange="toggleSelectPage('${p.id}',this.checked)"></td>
-      <td style="max-width:200px">
-        <div style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px" title="${esc(p.page_name)}">${esc(p.page_name)}</div>
-        ${tgInfo ? `<div style="margin-top:3px;display:flex;align-items:center;gap:5px;flex-wrap:nowrap;overflow:hidden">${tgInfo}</div>` : ""}
-        ${p.pic_email ? `<div style="margin-top:3px;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">👤 ${esc((allUsers.find(u=>u.email===p.pic_email)?.display_name) || p.pic_email)}</div>` : ""}
+      <td style="max-width:150px">
+        <div style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px" title="${esc(p.page_name)}">${esc(p.page_name)}</div>
+        ${tgInfo ? `<div style="margin-top:3px;display:flex;align-items:center;gap:5px;flex-wrap:nowrap;overflow:hidden;max-width:150px">${tgInfo}</div>` : ""}
+        ${p.pic_email ? `<div style="margin-top:3px;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px">👤 ${esc((allUsers.find(u=>u.email===p.pic_email)?.display_name) || p.pic_email)}</div>` : ""}
       </td>
-      <td><span class="platform-badge ${p.platform}"><span class="platform-dot ${p.platform}"></span>${cap(p.platform)}</span></td>
-      <td><span style="font-family:monospace;font-size:12px;color:var(--muted)">${esc(p.page_uid)}</span></td>
+      <td><span class="platform-badge ${p.platform}" style="white-space:nowrap"><span class="platform-dot ${p.platform}"></span>${cap(p.platform)}</span></td>
+      <td><span style="font-family:monospace;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px;display:inline-block;vertical-align:middle" title="${esc(p.page_uid)}">${esc(p.page_uid)}</span></td>
       <td>${p.page_group?`<span class="group-chip">${esc(p.page_group)}</span>`:`<span style="color:var(--muted2)">—</span>`}</td>
       <td>${logoCell}</td>
       <td>${apiCell}</td>
       <td>${tokenBadge}</td>
       <td><span class="${p.is_active?'status-active':'status-inactive'}">${p.is_active?"● Active":"○ Inactive"}</span></td>
       <td>
-        <div class="row-actions">
-          <button class="btn-token" onclick="openTokenFormModal('${p.id}','${esc(p.page_name)}','${p.platform}')">🔑 Token</button>
-          <button class="btn btn-ghost btn-xs" onclick="openPageModal('${p.id}')">Sửa</button>
-          <button class="btn btn-danger btn-xs" onclick="openConfirm('page','${p.id}','${esc(p.page_name)}')">Xoá</button>
+        <div class="row-actions" style="gap:3px">
+          <button class="btn-token" style="padding:4px 6px" title="Token" onclick="openTokenFormModal('${p.id}','${esc(p.page_name)}','${p.platform}')">🔑</button>
+          <button class="btn btn-ghost btn-xs" style="padding:3px 6px" title="Sửa" onclick="openPageModal('${p.id}')">✏️</button>
+          <button class="btn btn-danger btn-xs" style="padding:3px 6px" title="Xoá" onclick="openConfirm('page','${p.id}','${esc(p.page_name)}')">🗑️</button>
         </div>
       </td>
     </tr>`;
