@@ -1045,7 +1045,13 @@ async function saveBatchTokens() {
 
 // ── TOKEN STATS ────────────────────────────────────────────────
 function updateTokenStats() {
-  const all = Object.values(allTokens).flat().filter(t=>t.is_active);
+  let pages = allPages.filter(p => p.is_active);
+  if (tokenFilters.platform) pages = pages.filter(p => p.platform === tokenFilters.platform);
+  const pageIds = new Set(pages.map(p => p.id));
+  const all = Object.entries(allTokens)
+    .filter(([pid]) => pageIds.has(pid))
+    .flatMap(([,toks]) => toks)
+    .filter(t=>t.is_active);
   const now = new Date();
   const warn7 = new Date(Date.now()+7*864e5);
   const expired  = all.filter(t => t.expires_at && new Date(t.expires_at) <= now);
@@ -1063,6 +1069,7 @@ function setTokenFilter(key, val, btn) {
   tokenFilters[key] = val;
   btn.parentElement.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
   btn.classList.add("active");
+  if (key === "platform") updateTokenStats();
   renderTokenGroups();
 }
 
