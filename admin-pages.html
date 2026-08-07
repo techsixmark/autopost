@@ -410,8 +410,24 @@
         </div>
       </div>
 
-      <div id="tokenGroupsWrap">
-        <div class="empty"><div class="empty-icon">⏳</div><p>Đang tải...</p></div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Page</th>
+              <th>Platform</th>
+              <th>Token Name</th>
+              <th>Type</th>
+              <th>Value</th>
+              <th>Hết hạn</th>
+              <th>Ghi chú</th>
+              <th style="width:120px"></th>
+            </tr>
+          </thead>
+          <tbody id="tokenTableBody">
+            <tr><td colspan="8" class="empty"><div class="empty-icon">⏳</div><p>Đang tải...</p></td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
@@ -1030,7 +1046,7 @@ function setTokenFilter(key, val, btn) {
 
 function renderTokenGroups() {
   const q   = document.getElementById("tokenSearch").value.toLowerCase();
-  const wrap = document.getElementById("tokenGroupsWrap");
+  const body = document.getElementById("tokenTableBody");
 
   let pages = allPages.filter(p => p.is_active);
   if (tokenFilters.platform) pages = pages.filter(p => p.platform === tokenFilters.platform);
@@ -1056,67 +1072,52 @@ function renderTokenGroups() {
     });
 
   if (!filtered.length) {
-    wrap.innerHTML = `<div class="empty"><div class="empty-icon">🔒</div><p>Không có token nào</p></div>`;
+    body.innerHTML = `<tr><td colspan="8" class="empty"><div class="empty-icon">🔒</div><p>Không có token nào</p></td></tr>`;
     return;
   }
 
-  wrap.innerHTML = filtered.map(({p, tokens}) => {
-    const expired  = tokens.filter(t => t.expires_at && new Date(t.expires_at) <= now);
-    const expiring = tokens.filter(t => t.expires_at && new Date(t.expires_at) > now && new Date(t.expires_at) <= warn7);
-    const badgeStyle = expired.length ? "token-expired" : expiring.length ? "token-expiring" : "";
+  body.innerHTML = filtered.map(({p, tokens}) => {
+    const rowspan = Math.max(tokens.length, 1);
+    const pageCell = `<td rowspan="${rowspan}" style="max-width:150px;border-right:1px solid var(--border)">
+        <div style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px" title="${esc(p.page_name)}">${esc(p.page_name)}</div>
+        <div style="font-family:monospace;font-size:11px;color:var(--muted)">${esc(p.page_uid)}</div>
+      </td>
+      <td rowspan="${rowspan}" style="border-right:1px solid var(--border)"><span class="platform-badge ${p.platform}" style="white-space:nowrap"><span class="platform-dot ${p.platform}"></span>${cap(p.platform)}</span></td>`;
 
-    const tokenCards = tokens.length
-      ? tokens.map(t => {
-          const ei = expiryInfo(t.expires_at);
-          return `<div class="token-card">
-            <div class="token-card-header">
-              <div class="token-card-name">
-                ${esc(t.token_name)}
-                <span class="token-type-badge">${esc(t.token_type)}</span>
-              </div>
-              <div style="display:flex;gap:5px">
-                <button class="btn btn-ghost btn-xs" onclick="editTokenDirect('${p.id}','${esc(p.page_name)}','${p.platform}','${t.id}')">Sửa</button>
-                <button class="btn btn-danger btn-xs" onclick="openConfirm('token','${t.id}','${esc(t.token_name)}','${p.id}')">Xoá</button>
-              </div>
-            </div>
-            <div class="token-val-row">
-              <div class="token-masked" id="tv-${t.id}">${maskToken(t.token_value)}</div>
-              <button class="btn btn-ghost btn-xs" onclick="toggleReveal('${t.id}','${esc(t.token_value)}')">👁</button>
-              <button class="btn btn-ghost btn-xs" onclick="copyToken('${esc(t.token_value)}')">Copy</button>
-            </div>
-            ${ei ? `<div class="token-expiry ${ei.cls}">${ei.text}</div>` : ""}
-            ${t.note ? `<div class="token-note">📝 ${esc(t.note)}</div>` : ""}
-          </div>`;
-        }).join("")
-      : `<div class="empty-tokens">🔒 Chưa có token nào cho trang này</div>`;
+    if (!tokens.length) {
+      return `<tr>
+        ${pageCell}
+        <td colspan="4" style="color:var(--muted2)">— Chưa có token —</td>
+        <td></td>
+        <td><button class="btn btn-ghost btn-xs" onclick="openTokenFormModal('${p.id}','${esc(p.page_name)}','${p.platform}')">＋ Thêm</button></td>
+      </tr>`;
+    }
 
-    return `<div class="page-group">
-      <div class="page-group-header" onclick="toggleGroup(this)">
-        <div class="pg-platform">${PLATFORM_ICON[p.platform]||"📄"}</div>
-        <div>
-          <div class="pg-name">${esc(p.page_name)}</div>
-          <div class="pg-uid">${esc(p.page_uid)}</div>
-        </div>
-        <div class="pg-token-summary">
-          ${tokens.length ? `<span class="token-count ${badgeStyle}">${expired.length?"⛔":expiring.length?"⚡":"🔑"} ${tokens.length}</span>` : `<span style="color:var(--muted2);font-size:12px">Chưa có token</span>`}
-        </div>
-        <span class="pg-chevron">›</span>
-      </div>
-      <div class="pg-body">
-        <div class="token-grid">${tokenCards}</div>
-        <div class="add-token-row">
-          <button class="btn btn-ghost btn-sm" onclick="openTokenFormModal('${p.id}','${esc(p.page_name)}','${p.platform}')">＋ Thêm token</button>
-        </div>
-      </div>
-    </div>`;
+    return tokens.map((t, i) => {
+      const ei = expiryInfo(t.expires_at);
+      return `<tr>
+        ${i === 0 ? pageCell : ""}
+        <td style="white-space:nowrap">${esc(t.token_name)}</td>
+        <td><span class="token-type-badge">${esc(t.token_type)}</span></td>
+        <td>
+          <div style="display:flex;align-items:center;gap:5px">
+            <span class="token-masked" id="tv-${t.id}" style="font-size:11px">${maskToken(t.token_value)}</span>
+            <button class="btn btn-ghost btn-xs" style="padding:2px 5px" title="Hiện/Ẩn" onclick="toggleReveal('${t.id}','${esc(t.token_value)}')">👁</button>
+            <button class="btn btn-ghost btn-xs" style="padding:2px 5px" title="Copy" onclick="copyToken('${esc(t.token_value)}')">📋</button>
+          </div>
+        </td>
+        <td style="white-space:nowrap">${ei ? `<span class="token-expiry ${ei.cls}" style="font-size:11px;margin-top:0">${ei.text}</span>` : `<span style="color:var(--muted2)">—</span>`}</td>
+        <td style="font-size:12px;color:var(--muted);max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(t.note||"")}">${t.note ? esc(t.note) : "—"}</td>
+        <td>
+          <div class="row-actions" style="gap:3px">
+            <button class="btn btn-ghost btn-xs" style="padding:3px 6px" title="Sửa" onclick="editTokenDirect('${p.id}','${esc(p.page_name)}','${p.platform}','${t.id}')">✏️</button>
+            <button class="btn btn-danger btn-xs" style="padding:3px 6px" title="Xoá" onclick="openConfirm('token','${t.id}','${esc(t.token_name)}','${p.id}')">🗑️</button>
+            ${i === 0 ? `<button class="btn btn-ghost btn-xs" style="padding:3px 6px" title="Thêm token" onclick="openTokenFormModal('${p.id}','${esc(p.page_name)}','${p.platform}')">＋</button>` : ""}
+          </div>
+        </td>
+      </tr>`;
+    }).join("");
   }).join("");
-}
-
-function toggleGroup(header) {
-  const body = header.nextElementSibling;
-  const chevron = header.querySelector(".pg-chevron");
-  const open = body.classList.toggle("open");
-  chevron.classList.toggle("open", open);
 }
 
 // ── PAGE MODAL ────────────────────────────────────────────────

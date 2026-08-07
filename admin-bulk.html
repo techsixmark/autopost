@@ -650,7 +650,7 @@ async function importPages() {
       tg_default_link: r.platform === "telegram" && r.tg_default_link ? r.tg_default_link : null,
       pic_email:       r.pic_email || null,
     }));
-    const { error } = await sb.from("pages").upsert(batch);
+    const { error } = await sb.from("pages").upsert(batch, { onConflict: "id" });
     if (error) err += batch.length;
     else { upd += batch.length; chunk.forEach(r => { pageIdMap[rowKey(r)] = r._existingId; }); }
     done += chunk.length;
