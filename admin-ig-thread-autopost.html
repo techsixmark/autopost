@@ -465,8 +465,8 @@ function updateStats() {
   const cutoff7d = new Date(); cutoff7d.setDate(cutoff7d.getDate() - 6); cutoff7d.setHours(0,0,0,0);
   const active = allJobs.filter(j => {
     if (effectiveStatus(j) === "ignored") return false;
-    if (filterDateRange !== "all" && j.input_datetime) {
-      const jDate = new Date(j.input_datetime);
+    if (filterDateRange !== "all" && j.created_at) {
+      const jDate = new Date(j.created_at);
       if (filterDateRange === "today" && jDate.toISOString().slice(0,10) !== todayStr) return false;
       if (filterDateRange === "7d"    && jDate < cutoff7d) return false;
     }
@@ -511,8 +511,8 @@ function applyFilters() {
     const isArchived = effectiveStatus(j) === "ignored";
     if (viewMode === "archive" && !isArchived) return false;
     if (viewMode === "active"  &&  isArchived) return false;
-    if (filterDateRange !== "all" && j.input_datetime) {
-      const jDate = new Date(j.input_datetime);
+    if (filterDateRange !== "all" && j.created_at) {
+      const jDate = new Date(j.created_at);
       if (filterDateRange === "today" && jDate.toISOString().slice(0,10) !== todayStr) return false;
       if (filterDateRange === "7d"    && jDate < cutoff7d) return false;
     }
