@@ -638,6 +638,7 @@ async function importPages() {
     const chunk = toUpdate.slice(i, i+BATCH);
     const batch = chunk.map(r => ({
       id:         r._existingId,
+      user_id:    currentUser.id,
       page_name:  r.page_name,
       page_uid:   r.page_uid || null,
       platform:   r.platform,
