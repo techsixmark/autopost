@@ -461,13 +461,13 @@ async function loadJobs() {
 }
 
 function updateStats() {
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = new Date().toLocaleDateString("en-CA");
   const cutoff7d = new Date(); cutoff7d.setDate(cutoff7d.getDate() - 6); cutoff7d.setHours(0,0,0,0);
   const active = allJobs.filter(j => {
     if (effectiveStatus(j) === "ignored") return false;
     if (filterDateRange !== "all" && j.created_at) {
       const jDate = new Date(j.created_at);
-      if (filterDateRange === "today" && jDate.toISOString().slice(0,10) !== todayStr) return false;
+      if (filterDateRange === "today" && jDate.toLocaleDateString("en-CA") !== todayStr) return false;
       if (filterDateRange === "7d"    && jDate < cutoff7d) return false;
     }
     return true;
@@ -504,7 +504,7 @@ function applyFilters() {
   const plat = document.getElementById("fPlatform").value;
   const pid  = document.getElementById("fPage").value;
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = new Date().toLocaleDateString("en-CA");
   const cutoff7d = new Date(); cutoff7d.setDate(cutoff7d.getDate() - 6); cutoff7d.setHours(0,0,0,0);
 
   const filtered = allJobs.filter(j => {
@@ -513,7 +513,7 @@ function applyFilters() {
     if (viewMode === "active"  &&  isArchived) return false;
     if (filterDateRange !== "all" && j.created_at) {
       const jDate = new Date(j.created_at);
-      if (filterDateRange === "today" && jDate.toISOString().slice(0,10) !== todayStr) return false;
+      if (filterDateRange === "today" && jDate.toLocaleDateString("en-CA") !== todayStr) return false;
       if (filterDateRange === "7d"    && jDate < cutoff7d) return false;
     }
     if (stat && effectiveStatus(j) !== stat) return false;

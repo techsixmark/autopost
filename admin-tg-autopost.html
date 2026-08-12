@@ -239,6 +239,7 @@
       <div class="stat blue"><div class="num" id="sPending">—</div><div class="lbl">Chờ đăng</div></div>
       <div class="stat"><div class="num" id="sProcessing">—</div><div class="lbl">Đang xử lý</div></div>
       <div class="stat green"><div class="num" id="sSuccess">—</div><div class="lbl">Thành công</div></div>
+      <div class="stat warn"><div class="num" id="sErrVideo">—</div><div class="lbl">Video too large</div></div>
       <div class="stat warn"><div class="num" id="sError">—</div><div class="lbl">Lỗi</div></div>
       <div class="stat red"><div class="num" id="sErrLink">—</div><div class="lbl">Error Link</div></div>
     </div>
@@ -551,13 +552,14 @@ async function loadJobs() {
 }
 
 function updateStats() {
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = new Date().toLocaleDateString("en-CA");
   const cutoff7d = new Date(); cutoff7d.setDate(cutoff7d.getDate() - 6); cutoff7d.setHours(0,0,0,0);
   const active = allJobs.filter(j => {
     if (effectiveStatus(j) === "ignored") return false;
-    if (filterDateRange !== "all" && j.input_datetime) {
-      const jDate = new Date(j.input_datetime);
-      if (filterDateRange === "today" && jDate.toISOString().slice(0,10) !== todayStr) return false;
+    const raw = j.input_datetime || j.created_at;
+    if (filterDateRange !== "all" && raw) {
+      const jDate = new Date(raw);
+      if (filterDateRange === "today" && jDate.toLocaleDateString("en-CA") !== todayStr) return false;
       if (filterDateRange === "7d"    && jDate < cutoff7d) return false;
     }
     return true;
@@ -567,6 +569,7 @@ function updateStats() {
   document.getElementById("sPending").textContent     = cnt("pending");
   document.getElementById("sProcessing").textContent  = cnt("processing");
   document.getElementById("sSuccess").textContent     = cnt("success");
+  document.getElementById("sErrVideo").textContent    = cnt("error_video_large");
   document.getElementById("sError").textContent       = cnt("error");
   document.getElementById("sErrLink").textContent     = cnt("error_link");
   document.getElementById("archiveCount").textContent = allJobs.filter(j => effectiveStatus(j) === "ignored").length;
@@ -594,16 +597,17 @@ function applyFilters() {
   const type = document.getElementById("fType").value;
   const pid  = document.getElementById("fPage").value;
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = new Date().toLocaleDateString("en-CA");
   const cutoff7d = new Date(); cutoff7d.setDate(cutoff7d.getDate() - 6); cutoff7d.setHours(0,0,0,0);
 
   const filtered = allJobs.filter(j => {
     const isArchived = effectiveStatus(j) === "ignored";
     if (viewMode === "archive" && !isArchived) return false;
     if (viewMode === "active"  &&  isArchived) return false;
-    if (filterDateRange !== "all" && j.input_datetime) {
-      const jDate = new Date(j.input_datetime);
-      if (filterDateRange === "today" && jDate.toISOString().slice(0,10) !== todayStr) return false;
+    const raw = j.input_datetime || j.created_at;
+    if (filterDateRange !== "all" && raw) {
+      const jDate = new Date(raw);
+      if (filterDateRange === "today" && jDate.toLocaleDateString("en-CA") !== todayStr) return false;
       if (filterDateRange === "7d"    && jDate < cutoff7d) return false;
     }
     if (stat && effectiveStatus(j) !== stat) return false;

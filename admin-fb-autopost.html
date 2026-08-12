@@ -265,6 +265,7 @@
       <div class="stat"><div class="num" id="sProcessing">—</div><div class="lbl">Đang xử lý</div></div>
       <div class="stat green"><div class="num" id="sSuccess">—</div><div class="lbl">Thành công</div></div>
       <div class="stat warn"><div class="num" id="sErrVideo">—</div><div class="lbl">Video too large</div></div>
+      <div class="stat red"><div class="num" id="sError">—</div><div class="lbl">Lỗi</div></div>
       <div class="stat red"><div class="num" id="sErrLink">—</div><div class="lbl">Error Link</div></div>
     </div>
 
@@ -497,13 +498,14 @@ async function loadJobs() {
 }
 
 function updateStats() {
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = new Date().toLocaleDateString("en-CA");
   const cutoff7d = new Date(); cutoff7d.setDate(cutoff7d.getDate() - 6); cutoff7d.setHours(0,0,0,0);
   const active = allJobs.filter(j => {
     if (effectiveStatus(j) === "ignored") return false;
-    if (filterDateRange !== "all" && j.input_date) {
-      if (filterDateRange === "today" && j.input_date !== todayStr) return false;
-      if (filterDateRange === "7d"    && new Date(j.input_date) < cutoff7d) return false;
+    const jd = j.input_date || (j.created_at ? j.created_at.slice(0,10) : null);
+    if (filterDateRange !== "all" && jd) {
+      if (filterDateRange === "today" && jd !== todayStr) return false;
+      if (filterDateRange === "7d"    && new Date(jd) < cutoff7d) return false;
     }
     return true;
   });
@@ -513,6 +515,7 @@ function updateStats() {
   document.getElementById("sProcessing").textContent  = cnt("processing");
   document.getElementById("sSuccess").textContent     = cnt("success");
   document.getElementById("sErrVideo").textContent    = cnt("error_video_large");
+  document.getElementById("sError").textContent       = cnt("error");
   document.getElementById("sErrLink").textContent     = cnt("error_link");
   document.getElementById("archiveCount").textContent = allJobs.filter(j => effectiveStatus(j) === "ignored").length;
 }
@@ -539,16 +542,17 @@ function applyFilters() {
   const act  = document.getElementById("fAction").value;
   const pid  = document.getElementById("fPage").value;
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = new Date().toLocaleDateString("en-CA");
   const cutoff7d = new Date(); cutoff7d.setDate(cutoff7d.getDate() - 6); cutoff7d.setHours(0,0,0,0);
 
   const filtered = allJobs.filter(j => {
     const isArchived = effectiveStatus(j) === "ignored";
     if (viewMode === "archive" && !isArchived) return false;
     if (viewMode === "active"  &&  isArchived) return false;
-    if (filterDateRange !== "all" && j.input_date) {
-      if (filterDateRange === "today" && j.input_date !== todayStr) return false;
-      if (filterDateRange === "7d"    && new Date(j.input_date) < cutoff7d) return false;
+    const jd = j.input_date || (j.created_at ? j.created_at.slice(0,10) : null);
+    if (filterDateRange !== "all" && jd) {
+      if (filterDateRange === "today" && jd !== todayStr) return false;
+      if (filterDateRange === "7d"    && new Date(jd) < cutoff7d) return false;
     }
     if (stat && j.status !== stat) return false;
     if (act  && j.input_action_type !== act) return false;
