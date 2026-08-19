@@ -697,10 +697,11 @@ async function loadAll() {
   const [pRes, tRes, uRes] = await Promise.all([
     sb.from("pages").select("*").order("platform").order("page_name"),
     sb.from("page_tokens").select("id,page_id,token_name,token_type,token_value,expires_at,is_active,note"),
-    sb.rpc("get_users_with_roles"),
+    sb.rpc("get_active_users_basic"),
   ]);
   allPages = pRes.data ?? [];
-  allUsers = (uRes.data ?? []).filter(u => u.is_active);
+  if (uRes.error) console.error("get_active_users_basic:", uRes.error);
+  allUsers = uRes.data ?? [];
   allTokens = {};
   (tRes.data ?? []).forEach(t => {
     if (!allTokens[t.page_id]) allTokens[t.page_id] = [];
