@@ -406,6 +406,10 @@
               <label>Banner URL</label>
               <input type="url" id="fb-banner" placeholder="https://…/banner.png" />
             </div>
+            <div class="field">
+              <label>Nội dung comment</label>
+              <textarea id="fb-cmt" rows="2" placeholder="Nội dung sẽ tự động comment sau khi đăng bài (để trống nếu không cần)"></textarea>
+            </div>
             <div class="toggle-row">
               <div>
                 <div style="font-size:13px;font-weight:500">AI Agent</div>
@@ -1052,6 +1056,7 @@ function buildReview() {
     const fbCtype     = document.getElementById("fb-content-type").value;
     const fbTiktok    = document.getElementById("fb-tiktok").value;
     const fbBanner    = document.getElementById("fb-banner").value;
+    const fbCmt       = document.getElementById("fb-cmt").value;
     const fbAi        = document.getElementById("fb-ai").checked;
     const fbContent   = document.getElementById("fb-content").value;
     document.getElementById("btnCreate").innerHTML = `✍️ Tạo <span id="runCount">${selPages.length}</span> bài đăng`;
@@ -1064,6 +1069,7 @@ function buildReview() {
           ${fbCtype ? `<div class="review-row"><span class="rk">Loại nội dung:</span><span class="rv">${esc(fbCtype)}</span></div>` : ""}
           ${fbTiktok ? `<div class="review-row"><span class="rk">TikTok URL:</span><span class="rv" style="color:#60a5fa;font-size:12px">${trunc(fbTiktok,40)}</span></div>` : ""}
           ${fbBanner ? `<div class="review-row"><span class="rk">Banner URL:</span><span class="rv" style="color:#60a5fa;font-size:12px">${trunc(fbBanner,40)}</span></div>` : ""}
+          ${fbCmt ? `<div class="review-row"><span class="rk">Comment:</span><span class="rv">${esc(trunc(fbCmt,80))}</span></div>` : ""}
           <div class="review-row"><span class="rk">AI Agent:</span><span class="rv" style="color:${fbAi?'#2dd4bf':'var(--muted)'}">${fbAi?"Bật":"Tắt"}</span></div>
           ${fbAi && fbContent ? `<div class="review-row"><span class="rk">Nội dung:</span><span class="rv">${esc(trunc(fbContent,80))}</span></div>` : ""}
           <div class="review-row"><span class="rk">Template:</span><span class="rv">${esc(tpl.name)}</span></div>
@@ -1214,6 +1220,7 @@ async function runExecution() {
       const fbCtype    = document.getElementById("fb-content-type").value.trim() || null;
       const fbTiktok   = document.getElementById("fb-tiktok").value.trim() || null;
       const fbBanner   = document.getElementById("fb-banner").value.trim() || null;
+      const fbCmt      = document.getElementById("fb-cmt").value.trim() || null;
       const fbAi       = document.getElementById("fb-ai").checked;
       const fbContent  = document.getElementById("fb-content").value.trim() || null;
 
@@ -1238,6 +1245,7 @@ async function runExecution() {
           input_action_type:  actionType,
           tiktok_url:         fbTiktok,
           banner_url:         fbBanner,
+          input_cmt:          fbCmt,
           logo_url:           p.logo_link || null,
           sys_page_group:     p.page_group || null,
           sys_email:          user.email,
@@ -1464,7 +1472,7 @@ function startStatusPolling(jobIds, jobMap, selPages, table = "fb_autopost_jobs"
 // Xoá toàn bộ giá trị form còn sót lại của bài đăng trước, tránh dính nội dung cũ
 // khi bấm "Tạo bài đăng mới".
 function clearFormFields() {
-  const text = ["fb-date","fb-content-type","fb-tiktok","fb-banner","fb-content",
+  const text = ["fb-date","fb-content-type","fb-tiktok","fb-banner","fb-cmt","fb-content",
                 "tg-datetime","tg-content","tg-link-backup","tg-cta",
                 "ig-content","ig-topic","ig-video-link"];
   text.forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
