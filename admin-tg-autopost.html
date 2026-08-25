@@ -655,7 +655,9 @@ function renderTable(jobs) {
           : (effectiveLink ? `<a href="${esc(effectiveLink)}" target="_blank" style="font-size:11px;color:var(--tg);font-family:monospace">${trunc(effectiveLink,28)}</a>` : '<span style="color:var(--muted2)">—</span>')
         }
         ${j.cta_text ? `<div style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px" title="${esc(j.cta_text)}">${esc(j.cta_text)}</div>` : ''}
-        ${j.post_link ? `<div><a href="${esc(j.post_link)}" target="_blank" style="font-size:11px;color:#4ade80">Bài viết ↗</a></div>` : ''}
+        ${j.post_link
+          ? `<div><a href="${esc(j.post_link)}" target="_blank" style="font-size:11px;color:#4ade80">Bài viết ↗</a></div>`
+          : (effectiveStatus(j) === "success" && j.sys_tg_link ? `<div><a href="${esc(j.sys_tg_link)}" target="_blank" style="font-size:11px;color:var(--muted)" title="Chưa có link bài cụ thể — n8n chưa trả về, đây là link kênh">Kênh ↗</a></div>` : '')}
       </td>
       <td>${statusBadgeHTML(j)}</td>
       <td style="white-space:nowrap">${n8nCell}</td>
@@ -791,7 +793,13 @@ function openDetail(jobId) {
       ${job.n8n_status ? `<div class="detail-row"><span class="dk">n8n status</span><span class="dv">${n8nBadgeHTML(job)}</span></div>` : ''}
       ${job.n8n_note   ? `<div class="detail-row"><span class="dk">n8n note</span><span class="dv" style="color:var(--muted)">${esc(job.n8n_note)}</span></div>` : ''}
       <div class="detail-row"><span class="dk">Loại bài viết</span><span class="dv">${esc(job.post_type||'—')}</span></div>
-      <div class="detail-row"><span class="dk">Link bài viết</span><span class="dv">${job.post_link ? `<a href="${job.post_link}" target="_blank">Mở bài viết ↗</a>` : '—'}</span></div>
+      <div class="detail-row"><span class="dk">Link bài viết</span><span class="dv">${
+        job.post_link
+          ? `<a href="${job.post_link}" target="_blank">Mở bài viết ↗</a>`
+          : (job.sys_tg_link
+              ? `<span style="color:var(--muted)">Chưa có link bài cụ thể (n8n chưa trả về) — </span><a href="${job.sys_tg_link}" target="_blank">Xem kênh ↗</a>`
+              : '—')
+      }</span></div>
       <div class="detail-row"><span class="dk">Link video</span><span class="dv">${job.video_link ? `<a href="${job.video_link}" target="_blank">Xem video ↗</a>` : '—'}</span></div>
     </div>
   `;
