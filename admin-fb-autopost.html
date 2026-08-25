@@ -309,7 +309,7 @@
         <thead>
           <tr>
             <th>#</th>
-            <th>Ngày đăng</th>
+            <th>Ngày giờ đăng</th>
             <th>Page</th>
             <th>Loại</th>
             <th>AI</th>
@@ -361,8 +361,8 @@
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
         <div class="field">
-          <label>Ngày đăng *</label>
-          <input type="date" id="eFbDate" />
+          <label>Ngày giờ đăng *</label>
+          <input type="datetime-local" id="eFbDate" />
         </div>
         <div class="field">
           <label>Download video</label>
@@ -506,10 +506,11 @@ function updateStats() {
   const cutoff7d = new Date(); cutoff7d.setDate(cutoff7d.getDate() - 6); cutoff7d.setHours(0,0,0,0);
   const active = allJobs.filter(j => {
     if (effectiveStatus(j) === "ignored") return false;
-    const jd = j.input_date || (j.created_at ? j.created_at.slice(0,10) : null);
-    if (filterDateRange !== "all" && jd) {
-      if (filterDateRange === "today" && jd !== todayStr) return false;
-      if (filterDateRange === "7d"    && new Date(jd) < cutoff7d) return false;
+    const raw = j.input_date || j.created_at;
+    if (filterDateRange !== "all" && raw) {
+      const jDate = new Date(raw);
+      if (filterDateRange === "today" && jDate.toLocaleDateString("en-CA") !== todayStr) return false;
+      if (filterDateRange === "7d"    && jDate < cutoff7d) return false;
     }
     return true;
   });
@@ -553,10 +554,11 @@ function applyFilters() {
     const isArchived = effectiveStatus(j) === "ignored";
     if (viewMode === "archive" && !isArchived) return false;
     if (viewMode === "active"  &&  isArchived) return false;
-    const jd = j.input_date || (j.created_at ? j.created_at.slice(0,10) : null);
-    if (filterDateRange !== "all" && jd) {
-      if (filterDateRange === "today" && jd !== todayStr) return false;
-      if (filterDateRange === "7d"    && new Date(jd) < cutoff7d) return false;
+    const raw = j.input_date || j.created_at;
+    if (filterDateRange !== "all" && raw) {
+      const jDate = new Date(raw);
+      if (filterDateRange === "today" && jDate.toLocaleDateString("en-CA") !== todayStr) return false;
+      if (filterDateRange === "7d"    && jDate < cutoff7d) return false;
     }
     if (stat && j.status !== stat) return false;
     if (act  && j.input_action_type !== act) return false;
@@ -587,7 +589,7 @@ function renderTable(jobs) {
     return `
     <tr>
       <td style="color:var(--muted);font-size:12px">${i+1}</td>
-      <td style="white-space:nowrap">${j.input_date ? fmtDate(j.input_date) : '—'}</td>
+      <td style="white-space:nowrap">${j.input_date ? fmtDateTime(j.input_date) : '—'}</td>
       <td style="max-width:180px">
         <div style="font-weight:500;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px" title="${esc(j.page_name||'—')}">${esc(j.page_name||'—')}</div>
         ${j.sys_page_fb_id ? `<a href="https://www.facebook.com/${j.sys_page_fb_id}" target="_blank" style="font-size:11px;color:#1877f2;font-family:monospace;text-decoration:none;white-space:nowrap">Xem trang ↗</a>` : ''}
@@ -622,7 +624,7 @@ function openDetail(job) {
   document.getElementById("detailBody").innerHTML = `
     <div style="display:grid;gap:8px;">
       <div class="detail-row"><span class="dk">Trang</span><span class="dv"><strong>${esc(job.page_name||'—')}</strong></span></div>
-      <div class="detail-row"><span class="dk">Ngày đăng</span><span class="dv">${job.input_date ? fmtDate(job.input_date) : '—'}</span></div>
+      <div class="detail-row"><span class="dk">Ngày giờ đăng</span><span class="dv">${job.input_date ? fmtDateTime(job.input_date) : '—'}</span></div>
       <div class="detail-row"><span class="dk">Loại bài</span><span class="dv"><span class="chip chip-${job.input_action_type}">${actionLabel(job.input_action_type)}</span></span></div>
       <div class="detail-row"><span class="dk">Loại nội dung</span><span class="dv">${esc(job.input_content_type||'—')}</span></div>
       <div class="detail-row"><span class="dk">AI Agent</span><span class="dv">${job.ai_agent ? '<span class="ai-on">Bật</span>' : 'Tắt'}</span></div>
@@ -673,7 +675,7 @@ function openEditFb(jobId) {
   editFbJobId = jobId;
   const j = allJobs.find(x => x.id === jobId);
   if (!j) return;
-  document.getElementById("eFbDate").value        = j.input_date || new Date().toISOString().split("T")[0];
+  document.getElementById("eFbDate").value        = j.input_date ? toDatetimeLocalValue(j.input_date) : toDatetimeLocalValue(new Date());
   document.getElementById("eFbActionType").value  = j.input_action_type || "download_video";
   document.getElementById("eFbContentType").value = j.input_content_type || "";
   document.getElementById("eFbTiktokUrl").value   = j.tiktok_url || "";
@@ -699,13 +701,13 @@ async function doEditFb() {
   const oldJob = allJobs.find(x => x.id === editFbJobId);
   if (!oldJob) { toast("Không tìm thấy bài đăng","error"); btn.disabled=false; btn.textContent="✏️ Lưu & Tạo mới"; return; }
   const date = document.getElementById("eFbDate").value;
-  if (!date) { toast("Vui lòng chọn ngày đăng","warn"); btn.disabled=false; btn.textContent="✏️ Lưu & Tạo mới"; return; }
+  if (!date) { toast("Vui lòng chọn ngày giờ đăng","warn"); btn.disabled=false; btn.textContent="✏️ Lưu & Tạo mới"; return; }
   try {
     const payload = {
       user_id:            currentUser.id,
       page_id:            oldJob.page_id,
       page_name:          oldJob.page_name,
-      input_date:         date,
+      input_date:         new Date(date).toISOString(),
       input_action_type:  document.getElementById("eFbActionType").value,
       input_content_type: document.getElementById("eFbContentType").value.trim() || null,
       content:            document.getElementById("eFbContent").value.trim() || null,
@@ -796,7 +798,17 @@ function fmtDate(d) {
 function fmtDateTime(d) {
   if (!d) return "—";
   const dt = new Date(d);
-  return `${String(dt.getDate()).padStart(2,"0")}/${String(dt.getMonth()+1).padStart(2,"0")} ${String(dt.getHours()).padStart(2,"0")}:${String(dt.getMinutes()).padStart(2,"0")}`;
+  return `${String(dt.getDate()).padStart(2,"0")}/${String(dt.getMonth()+1).padStart(2,"0")}/${dt.getFullYear()} ${String(dt.getHours()).padStart(2,"0")}:${String(dt.getMinutes()).padStart(2,"0")}`;
+}
+
+// Chuyển 1 giá trị timestamptz (ISO, có timezone) từ DB sang string local-time mà
+// <input type="datetime-local"> hiểu đúng ("YYYY-MM-DDTHH:mm" theo giờ trình duyệt) —
+// KHÔNG dùng .toISOString() trực tiếp vì nó trả giờ UTC, sẽ hiển thị sai giờ VN.
+function toDatetimeLocalValue(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0,16);
 }
 
 function esc(s) {

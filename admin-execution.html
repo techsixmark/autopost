@@ -383,8 +383,8 @@
           <div style="display:flex;flex-direction:column;gap:16px;">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
               <div class="field">
-                <label>Ngày đăng *</label>
-                <input type="date" id="fb-date" />
+                <label>Ngày giờ đăng *</label>
+                <input type="datetime-local" id="fb-date" />
               </div>
               <div class="field">
                 <label>Loại nội dung</label>
@@ -416,7 +416,7 @@
                 <div style="font-size:11px;color:var(--muted);margin-top:2px">Bật: AI tự viết nội dung · Tắt: nhập nội dung thủ công</div>
               </div>
               <label class="toggle">
-                <input type="checkbox" id="fb-ai" checked onchange="onFbAiAgentToggle()" />
+                <input type="checkbox" id="fb-ai" onchange="onFbAiAgentToggle()" />
                 <span class="toggle-slider"></span>
               </label>
             </div>
@@ -872,8 +872,10 @@ function buildForm() {
   if (isFb) {
     document.getElementById("step4Title").textContent = "📘 Thông tin bài đăng Facebook";
     document.getElementById("step4Sub").textContent   = "Điền thông tin bài đăng. Hệ thống tự lookup token từ pages đã chọn.";
-    if (!document.getElementById("fb-date").value)
-      document.getElementById("fb-date").value = new Date().toISOString().split("T")[0];
+    if (!document.getElementById("fb-date").value) {
+      const dt = new Date(); dt.setMinutes(dt.getMinutes() - dt.getTimezoneOffset());
+      document.getElementById("fb-date").value = dt.toISOString().slice(0,16);
+    }
     if (!document.getElementById("fb-content-type").value)
       document.getElementById("fb-content-type").value = "video";
     if (!document.getElementById("fb-action-type").value)
@@ -926,15 +928,32 @@ function onFbAiAgentToggle() {
 
 // Hiển thị danh sách page/kênh đã chọn ở bước 4 (mọi platform) — thay cho việc
 // lookup & show token nhạy cảm của riêng page đầu tiên như trước đây.
+// Cho phép bỏ bớt page ngay tại đây (✕) hoặc quay lại bước 3 để thêm/chọn lại,
+// không cần rời bước nội dung để chỉnh danh sách trang.
 function renderSelectedPagesBox(wrapId, emptyMsg) {
   const wrap = document.getElementById(wrapId);
   const pages = allPages.filter(p => selected.pages.includes(p.id));
   if (!pages.length) { wrap.innerHTML = `<div style="color:var(--muted);font-size:13px">${emptyMsg}</div>`; return; }
   wrap.innerHTML = `
     <div class="fb-info-box">
-      <div style="font-size:12px;color:var(--muted);margin-bottom:8px">${pages.length} đã chọn</div>
-      ${pages.map(p => `<div style="font-size:12px;display:flex;align-items:center;gap:6px;margin-bottom:6px">${PLAT_ICON[p.platform]||"📄"} ${esc(p.page_name)}</div>`).join("")}
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span style="font-size:12px;color:var(--muted)">${pages.length} đã chọn</span>
+        <a href="#" onclick="goStep(3);return false;" style="font-size:11px;color:var(--accent)">✏️ Sửa danh sách</a>
+      </div>
+      ${pages.map(p => `<div style="font-size:12px;display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:6px">
+        <span>${PLAT_ICON[p.platform]||"📄"} ${esc(p.page_name)}</span>
+        <a href="#" onclick="removeSelectedPage('${p.id}',this);return false;" title="Bỏ page này" style="color:var(--danger);font-size:12px">✕</a>
+      </div>`).join("")}
     </div>`;
+}
+
+// Bỏ 1 page khỏi danh sách đã chọn ngay tại bước nội dung (không cần quay lại bước 3).
+function removeSelectedPage(pageId, linkEl) {
+  selected.pages = selected.pages.filter(id => id !== pageId);
+  const wrap = linkEl.closest('[id$="SysInfoWrap"]');
+  if (wrap?.id === "fbSysInfoWrap") updateFbSysInfo();
+  else if (wrap?.id === "tgSysInfoWrap") updateTgSysInfo();
+  else if (wrap?.id === "igSysInfoWrap") updateIgSysInfo();
 }
 
 function updateFbSysInfo() { renderSelectedPagesBox("fbSysInfoWrap", "Chưa chọn page nào…"); }
@@ -1065,7 +1084,7 @@ function buildReview() {
         <div class="review-box" style="border-color:#1877f230">
           <div class="review-box-title">📘 Facebook Autopost</div>
           <div class="review-row"><span class="rk">Loại bài:</span><span class="rv">${actionLabel}</span></div>
-          <div class="review-row"><span class="rk">Ngày đăng:</span><span class="rv">${fbDate ? fbDate.split("-").reverse().join("/") : "—"}</span></div>
+          <div class="review-row"><span class="rk">Ngày giờ đăng:</span><span class="rv">${fmtDatetimeLocal(fbDate)}</span></div>
           ${fbCtype ? `<div class="review-row"><span class="rk">Loại nội dung:</span><span class="rv">${esc(fbCtype)}</span></div>` : ""}
           ${fbTiktok ? `<div class="review-row"><span class="rk">TikTok URL:</span><span class="rv" style="color:#60a5fa;font-size:12px">${trunc(fbTiktok,40)}</span></div>` : ""}
           ${fbBanner ? `<div class="review-row"><span class="rk">Banner URL:</span><span class="rv" style="color:#60a5fa;font-size:12px">${trunc(fbBanner,40)}</span></div>` : ""}
@@ -1216,7 +1235,8 @@ async function runExecution() {
     btn.disabled = true; btn.textContent = "Đang tạo…";
     try {
       const actionType = document.getElementById("fb-action-type").value || "download_video";
-      const fbDate     = document.getElementById("fb-date").value || null;
+      const fbDateRaw  = document.getElementById("fb-date").value || null;
+      const fbDate     = fbDateRaw ? new Date(fbDateRaw).toISOString() : null;
       const fbCtype    = document.getElementById("fb-content-type").value.trim() || null;
       const fbTiktok   = document.getElementById("fb-tiktok").value.trim() || null;
       const fbBanner   = document.getElementById("fb-banner").value.trim() || null;
@@ -1478,7 +1498,7 @@ function clearFormFields() {
   text.forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
   const igCtype = document.getElementById("ig-content-type"); if (igCtype) igCtype.value = "image";
   const fbAction = document.getElementById("fb-action-type"); if (fbAction) fbAction.value = "download_video";
-  const fbAi = document.getElementById("fb-ai"); if (fbAi) fbAi.checked = true;
+  const fbAi = document.getElementById("fb-ai"); if (fbAi) fbAi.checked = false;
   const tgAi = document.getElementById("tg-ai"); if (tgAi) tgAi.checked = false;
   const tgDef = document.getElementById("tg-use-default"); if (tgDef) tgDef.checked = true;
   if (typeof onFbAiAgentToggle === "function") onFbAiAgentToggle();
@@ -1554,6 +1574,12 @@ function maskToken(t) {
 }
 function cap(s) { return s ? s[0].toUpperCase()+s.slice(1) : s; }
 function trunc(s, n) { return s && s.length > n ? s.substring(0,n)+"…" : (s||""); }
+// Format the raw value of an <input type="datetime-local"> ("YYYY-MM-DDTHH:mm") as dd/mm/yyyy HH:mm
+function fmtDatetimeLocal(v) {
+  if (!v) return "—";
+  const [d, t] = v.split("T");
+  return `${d.split("-").reverse().join("/")} ${t || ""}`.trim();
+}
 function esc(s) {
   return (s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 }
