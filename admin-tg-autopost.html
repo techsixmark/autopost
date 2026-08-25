@@ -819,7 +819,7 @@ function openEditModal(jobId) {
   editJobId = jobId;
   const j = allJobs.find(x => x.id === jobId);
   if (!j) return;
-  document.getElementById("eDatetime").value   = j.input_datetime ? new Date(j.input_datetime).toISOString().slice(0,16) : "";
+  document.getElementById("eDatetime").value   = j.input_datetime ? toDatetimeLocalValue(j.input_datetime) : "";
   document.getElementById("eContent").value    = j.content || "";
   document.getElementById("eUseDefault").checked = j.use_default_link ?? false;
   document.getElementById("eLinkBackup").value = j.link_backup || "";
@@ -931,6 +931,17 @@ function fmtDateTime(d) {
   if (!d) return "—";
   const dt = new Date(d);
   return `${String(dt.getDate()).padStart(2,"0")}/${String(dt.getMonth()+1).padStart(2,"0")} ${String(dt.getHours()).padStart(2,"0")}:${String(dt.getMinutes()).padStart(2,"0")}`;
+}
+
+// Chuyển 1 giá trị timestamptz (ISO, có timezone) từ DB sang string local-time mà
+// <input type="datetime-local"> hiểu đúng ("YYYY-MM-DDTHH:mm" theo giờ trình duyệt) —
+// KHÔNG dùng .toISOString() trực tiếp vì nó trả giờ UTC, hiển thị sai giờ VN, và nếu
+// lưu lại mà không sửa gì sẽ âm thầm lệch giờ đã lưu đi 7 tiếng mỗi lần sửa.
+function toDatetimeLocalValue(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0,16);
 }
 
 function esc(s) {
