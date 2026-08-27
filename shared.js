@@ -56,12 +56,13 @@ const STATUS_CLASS = {
 };
 
 // Chuẩn hoá n8n_status (text tự do, casing không đồng nhất giữa các n8n workflow)
-// về 1 trong 4 nhóm: success | error | error_link | running
+// về 1 trong 5 nhóm: success | error | error_link | error_video_large | running
 function normalizeN8n(raw) {
   if (!raw) return null;
   const v = String(raw).trim().toLowerCase();
   if (["success","ok","done","thành công","thanh cong","hoàn thành","hoan thanh","hoàn tất","hoan tat"].includes(v)) return "success";
   if (["error link","errorlink","error_link","link error","lỗi link","loi link","link lỗi","link loi","link hỏng","link hong"].includes(v)) return "error_link";
+  if (["video too large","video quá lớn","video qua lon"].includes(v)) return "error_video_large";
   if (["error","failed","fail","lỗi","loi","thất bại","that bai"].includes(v)) return "error";
   return "running"; // bất kỳ giá trị khác không rỗng → coi như đang chạy
 }
@@ -71,7 +72,8 @@ function normalizeN8n(raw) {
 function effectiveStatus(job) {
   if (!job) return "pending";
   if (job.status === "ignored" || job.status === "replaced_link") return job.status;
-  if (normalizeN8n(job.n8n_status) === "error_link") return "error_link";
+  const n = normalizeN8n(job.n8n_status);
+  if (n === "error_link" || n === "error_video_large") return n;
   return job.status || "pending";
 }
 
@@ -89,7 +91,7 @@ function statusBadgeHTML(job) {
 function n8nBadgeHTML(job) {
   if (!job || !job.n8n_status) return `<span style="color:var(--muted2);font-size:11px">—</span>`;
   const n = normalizeN8n(job.n8n_status);
-  const cls = n === "success" ? "n8n-success" : (n === "error" || n === "error_link") ? "n8n-error" : "n8n-running";
+  const cls = n === "success" ? "n8n-success" : (n === "error" || n === "error_link" || n === "error_video_large") ? "n8n-error" : "n8n-running";
   return `<span class="n8n-badge ${cls}">${escHtml(job.n8n_status)}</span>`;
 }
 
@@ -104,7 +106,7 @@ function statusLegendTableHTML() {
     ["processing",         "n8n đang chạy"],
     ["success",            "Đăng thành công"],
     ["error",              "Lỗi chung"],
-    ["error_video_large",  "Riêng FB — video vượt giới hạn dung lượng"],
+    ["error_video_large",  "Video vượt giới hạn dung lượng khi tải — áp dụng cả Facebook và Telegram"],
     ["error_link",         "Link nguồn lỗi — áp dụng mọi platform, override status thật"],
     ["replaced_link",      "TG — job cũ bị thay bằng job mới sau khi bấm Retry"],
     ["ignored",            "Job cũ bị thay thế khi bấm Sửa"],

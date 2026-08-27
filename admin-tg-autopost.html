@@ -874,9 +874,13 @@ async function doEdit() {
     };
     const { error: ie } = await sb.from("tg_autopost_jobs").insert(payload);
     if (ie) throw ie;
-    const { error: ue } = await sb.from("tg_autopost_jobs").update({ status:"ignored" }).eq("id", editJobId);
+    // Sửa 1 job đang Error Link về bản chất là "thử lại link khác" — đánh dấu job
+    // cũ là replaced_link (không phải ignored) để đúng ý nghĩa đã ghi trong bảng
+    // giải thích Trạng thái (xem openStatusLegend() trong shared.js).
+    const oldStatus = effectiveStatus(oldJob) === "error_link" ? "replaced_link" : "ignored";
+    const { error: ue } = await sb.from("tg_autopost_jobs").update({ status: oldStatus }).eq("id", editJobId);
     if (ue) throw ue;
-    toast("✅ Bài đăng mới đã tạo · bài đăng cũ → ignored","success");
+    toast(`✅ Bài đăng mới đã tạo · bài đăng cũ → ${oldStatus}`,"success");
     closeEditModal();
     loadJobs();
   } catch(e) {
