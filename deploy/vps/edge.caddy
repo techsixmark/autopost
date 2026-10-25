@@ -1,9 +1,0 @@
-# Autopost site block for the shared LMS Caddy (the VPS entry point, ports 80/443).
-# Template: deploy.sh fills the @...@ domains and writes /opt/caddy-sites/autopost.caddy.
-# Owned by the Autopost repo (techsixmark/autopost, deploy/vps); the LMS only imports it.
-# Regular certificates (not on-demand): the four domains must point to the VPS first.
-@APP_DOMAIN@, @API_DOMAIN@, @STUDIO_DOMAIN@, @N8N_DOMAIN@ {
-	reverse_proxy autopost-gateway:80 {
-		header_up X-Real-IP {remote_host}
-	}
-}

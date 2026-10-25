@@ -1,5 +1,0 @@
-# Scripts and configs run on the Linux VPS: always LF, even when edited on Windows.
-*.sh text eol=lf
-Caddyfile text eol=lf
-*.caddy text eol=lf
-*.yml text eol=lf

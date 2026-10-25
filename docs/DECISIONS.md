@@ -13,3 +13,4 @@ Mỗi quyết định một dòng. Đổi ý thì thêm dòng mới, không xóa
 | 2026-10-25 | n8n tự host `2.44.6`, database riêng `n8n` trong `autopost-db`; workflow nhập vào ở trạng thái tắt tới ngày chuyển | Chạy song song với n8n Cloud mà bật cả hai sẽ đăng bài 2 lần | Đang triển khai |
 | 2026-10-25 | Web trên VPS tự cập nhật: cron 2 phút `update.sh` kéo `main` rồi `deploy.sh` | Giữ trải nghiệm "push là lên" như Vercel mà không cần CI | Đã áp dụng |
 | 2026-10-25 | Giữ Vercel + Supabase cloud 1–2 tuần sau khi chuyển làm dự phòng rồi mới tắt | Có đường lùi nếu bản VPS gặp lỗi | Kế hoạch |
+| 2026-10-25 | **Hủy chuyển lên VPS**, giữ nguyên Vercel + Supabase cloud + n8n Cloud. Đã gỡ toàn bộ Autopost khỏi VPS, trả lại cấu hình Caddy của LMS (lms-b2b `b12a6b0`), xóa `deploy/vps`, giao diện về bản `1bb376d` | Chuyển sang VPS bắt buộc nhập lại credential n8n và thêm cấu hình Google OAuth; người dùng chọn không chuyển | Đã áp dụng |
