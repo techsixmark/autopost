@@ -1,0 +1,33 @@
+# Overrides for the Autopost self-hosted Supabase (/opt/autopost/supabase), added to its
+# COMPOSE_FILE by bootstrap.sh. The LMS runs its own Supabase on the same VPS with the default
+# supabase-* container names, so every service started here gets an autopost-* name and no
+# published port (Docker-published ports bypass ufw). Only these services are started:
+# db auth rest meta studio api-gw (see SUPABASE_SERVICES in bootstrap.sh).
+services:
+  db:
+    container_name: autopost-db
+    # Same image as the LMS Supabase (already on the VPS). Supabase cloud ran 17.6.
+    image: supabase/postgres:17.11.0.006
+
+  auth:
+    container_name: autopost-auth
+    environment:
+      # Autopost signs in with Google only (auth-guard.js).
+      GOTRUE_EXTERNAL_GOOGLE_ENABLED: 'true'
+      GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?}
+      GOTRUE_EXTERNAL_GOOGLE_SECRET: ${GOOGLE_SECRET:?}
+      GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI: ${API_EXTERNAL_URL}/callback
+
+  rest:
+    container_name: autopost-rest
+
+  meta:
+    container_name: autopost-meta
+
+  studio:
+    container_name: autopost-studio
+
+  api-gw:
+    container_name: autopost-api-gw
+    # Reached only through autopost-gateway on the Docker network.
+    ports: !reset []
