@@ -3,8 +3,16 @@
 // Inject bằng <script src="/auth-guard.js"></script>
 // ============================================================
 
-const SUPABASE_URL  = "https://hpsoflovdjvgfrejovvu.supabase.co";
-const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhwc29mbG92ZGp2Z2ZyZWpvdnZ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU5OTM5MDAsImV4cCI6MjEwMTU2OTkwMH0.QlK6_7fOC3hLbyOJcOmXh2M4L4mPlU4DiTZrlkZzTQ4";
+// Supabase project per host: autopost.sixmark.net runs on the VPS with its own self-hosted
+// Supabase (deploy/vps); any other host (Vercel, kept as a fallback during the move) stays on
+// Supabase cloud. Anon keys are public by design (RLS protects the data).
+const SUPABASE_TARGETS = {
+  vps:   { url: "https://api-autopost.sixmark.net", anon: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzkyODk3MTY2LCJleHAiOjE5NTA1NzcxNjZ9.OjvLcE0_E1FK5m-WIXMkBmBQ_U2mbsZYOx9a7k4oXs8" },
+  cloud: { url: "https://hpsoflovdjvgfrejovvu.supabase.co", anon: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhwc29mbG92ZGp2Z2ZyZWpvdnZ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU5OTM5MDAsImV4cCI6MjEwMTU2OTkwMH0.QlK6_7fOC3hLbyOJcOmXh2M4L4mPlU4DiTZrlkZzTQ4" },
+};
+const _sbTarget = location.hostname === "autopost.sixmark.net" ? SUPABASE_TARGETS.vps : SUPABASE_TARGETS.cloud;
+const SUPABASE_URL  = _sbTarget.url;
+const SUPABASE_ANON = _sbTarget.anon;
 
 // ── Role definitions ─────────────────────────────────────────
 const ROLE_LEVEL = { admin: 3, editor: 2, viewer: 1 };
