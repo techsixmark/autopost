@@ -4,6 +4,10 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 git fetch -q origin main
-[ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] && exit 0
+if [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ]; then
+  # Nothing new. Until HTTPS is on, keep checking DNS so it turns on by itself once the records exist.
+  [ -f /opt/caddy-sites/autopost.caddy ] || exec deploy/vps/deploy.sh --edge-only
+  exit 0
+fi
 git merge -q --ff-only origin/main
 exec deploy/vps/deploy.sh
