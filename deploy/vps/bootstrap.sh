@@ -48,6 +48,12 @@ if [ ! -f "$SUPABASE_DIR/.env" ]; then
   env_set "$sb" GOOGLE_SECRET "$GOOGLE_SECRET"
 fi
 cp supabase/docker-compose.autopost.yml "$SUPABASE_DIR/"
+# Guard: the official compose file is named `supabase`, like the LMS Supabase project.
+project=$(cd "$SUPABASE_DIR" && docker compose config 2>/dev/null | sed -n 's/^name: //p' | head -n1)
+if [ "$project" != autopost-supabase ]; then
+  echo "Compose project resolves to '$project', not autopost-supabase: refusing to touch the LMS stack" >&2
+  exit 1
+fi
 (cd "$SUPABASE_DIR" && docker compose up -d $SUPABASE_SERVICES)
 for _ in $(seq 1 60); do docker exec autopost-db pg_isready -q -U postgres && break; sleep 2; done
 

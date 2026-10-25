@@ -3,6 +3,11 @@
 # supabase-* container names, so every service started here gets an autopost-* name and no
 # published port (Docker-published ports bypass ufw). Only these services are started:
 # db auth rest meta studio api-gw (see SUPABASE_SERVICES in bootstrap.sh).
+
+# The official docker-compose.yml says `name: supabase`, which is the LMS Supabase project on this
+# VPS: without this override, `docker compose up` here would recreate the LMS containers.
+name: autopost-supabase
+
 services:
   db:
     container_name: autopost-db
