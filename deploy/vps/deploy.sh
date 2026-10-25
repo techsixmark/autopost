@@ -30,7 +30,8 @@ echo "==> HTTPS entry in the LMS Caddy ($SITE_FILE)"
 ip=$(ip -4 route get 1.1.1.1 | sed -n 's/.* src \([0-9.]*\).*/\1/p')
 ready=1
 for d in "$APP_DOMAIN" "$API_DOMAIN" "$STUDIO_DOMAIN" "$N8N_DOMAIN"; do
-  r=$(getent ahostsv4 "$d" | awk 'NR==1 {print $1}')
+  # getent exits 2 for a missing record: must not end the script (set -e + pipefail)
+  r=$(getent ahostsv4 "$d" | awk 'NR==1 {print $1}' || true)
   [ "$r" = "$ip" ] || { echo "    $d → ${r:-no DNS record} (expected $ip)"; ready=0; }
 done
 if [ "$ready" = 0 ]; then
