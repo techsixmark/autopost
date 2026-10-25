@@ -76,6 +76,11 @@ select 'create database n8n owner n8n'
 SQL
 
 echo "==> Cron: backup 02:45 daily, pull + deploy every 2 minutes"
+# The VPS image ships without cron (the LMS backup cron also depends on it).
+if ! command -v cron >/dev/null; then
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq cron >/dev/null
+fi
+systemctl enable --now cron >/dev/null
 app_dir=$(cd ../.. && pwd)
 cat >/etc/cron.d/autopost-backup <<EOF
 45 2 * * * root $app_dir/deploy/vps/backup.sh >>/var/log/autopost-backup.log 2>&1
