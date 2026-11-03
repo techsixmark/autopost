@@ -428,7 +428,7 @@
           <input type="radio" name="n8nOpt" value="reset" id="n8nOptReset" checked style="margin-top:2px;accent-color:var(--accent)" />
           <div>
             <div style="font-size:13px;font-weight:500;">🕐 Đặt lại chờ đăng</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:2px">Cập nhật n8n_status → "Chờ đăng", bài đăng sẽ được xử lý lại</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">Trạng thái → Chờ xử lý, n8n_status → "Chờ đăng": bài đăng sẽ được xử lý lại</div>
           </div>
         </label>
         <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:10px 14px;border-radius:8px;border:2px solid transparent;transition:border .15s" id="n8nOpt2Label" onclick="selectN8nOpt('cancel')">
@@ -770,8 +770,9 @@ async function saveN8nStatus() {
     ({ error } = await sb.from("fb_autopost_jobs").update({ status: "ignored" }).eq("id", n8nStatusJobId));
     if (!error) toast("🚫 Đã hủy · bài đăng chuyển vào Lưu trữ", "success");
   } else {
-    ({ error } = await sb.from("fb_autopost_jobs").update({ n8n_status: "Chờ đăng" }).eq("id", n8nStatusJobId));
-    if (!error) toast("✅ Đã đặt lại n8n_status = Chờ đăng", "success");
+    // Retry: back to pending too, otherwise an error_* job stays stuck and never reruns.
+    ({ error } = await sb.from("fb_autopost_jobs").update({ status: "pending", n8n_status: "Chờ đăng" }).eq("id", n8nStatusJobId));
+    if (!error) toast("✅ Đã đặt lại: Chờ xử lý · n8n_status = Chờ đăng", "success");
   }
   btn.disabled = false; btn.textContent = "✔ Xác nhận";
   if (error) return toast(error.message, "error");
