@@ -11,4 +11,5 @@
 
 ### Thêm
 
+- Telegram: trường `banner_url` (Banner URL) ở form tạo bài, xem trước, form sửa bài và trang chi tiết.
 - `CLAUDE.md` (hướng dẫn cho AI) và `docs/DECISIONS.md` (nhật ký quyết định).

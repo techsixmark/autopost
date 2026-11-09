@@ -447,6 +447,10 @@
         <label>CTA cuối bài</label>
         <input type="text" id="eCta" placeholder="VD: 👉 Xem thêm tại link dưới đây" />
       </div>
+      <div class="field">
+        <label>Banner URL</label>
+        <input type="url" id="eBannerUrl" placeholder="https://…/banner.png" />
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeEditModal()">Huỷ</button>
@@ -543,7 +547,7 @@ async function loadJobs() {
   const sb = getSB();
   const { data, error } = await sb
     .from("tg_autopost_jobs")
-    .select("id,page_id,input_datetime,content,use_default_link,link_backup,cta_text,ai_agent,sys_chat_id,sys_tg_link,sys_default_link,sys_email,status,n8n_status,n8n_note,post_link,post_type,video_link,parent_job_id,created_at")
+    .select("id,page_id,input_datetime,content,use_default_link,link_backup,cta_text,banner_url,ai_agent,sys_chat_id,sys_tg_link,sys_default_link,sys_email,status,n8n_status,n8n_note,post_link,post_type,video_link,parent_job_id,created_at")
     .order("created_at",{ascending:false}).limit(300);
   if (error) { console.error(error); return; }
   allJobs = data || [];
@@ -780,6 +784,7 @@ function openDetail(jobId) {
       <div class="detail-row"><span class="dk">Dùng link default</span><span class="dv">${job.use_default_link ? 'Có' : 'Không'}</span></div>
       <div class="detail-row"><span class="dk">Link backup</span><span class="dv">${job.link_backup ? `<a href="${job.link_backup}" target="_blank">${esc(job.link_backup)}</a>` : '—'}</span></div>
       <div class="detail-row"><span class="dk">CTA</span><span class="dv">${esc(job.cta_text||'—')}</span></div>
+      <div class="detail-row"><span class="dk">Banner URL</span><span class="dv">${job.banner_url ? `<a href="${esc(job.banner_url)}" target="_blank">${esc(job.banner_url)}</a>` : '—'}</span></div>
       <div class="detail-row"><span class="dk">AI Agent</span><span class="dv">${job.ai_agent ? '<span class="ai-on">Bật</span>' : 'Tắt'}</span></div>
 
       <div style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Thông tin hệ thống</div>
@@ -832,6 +837,7 @@ function openEditModal(jobId) {
   document.getElementById("eUseDefault").checked = j.use_default_link ?? false;
   document.getElementById("eLinkBackup").value = j.link_backup || "";
   document.getElementById("eCta").value        = j.cta_text || "";
+  document.getElementById("eBannerUrl").value  = j.banner_url || "";
   document.getElementById("eAiAgent").checked  = j.ai_agent || false;
   onEditDefaultToggle();
   onEditAiAgentToggle();
@@ -867,6 +873,7 @@ async function doEdit() {
       use_default_link: useDefault,
       link_backup:      useDefault ? null : linkBackup,
       cta_text:         document.getElementById("eCta").value.trim() || null,
+      banner_url:       document.getElementById("eBannerUrl").value.trim() || null,
       ai_agent:         document.getElementById("eAiAgent").checked,
       sys_chat_id:      oldJob.sys_chat_id, sys_tg_link: oldJob.sys_tg_link,
       sys_default_link: oldJob.sys_default_link, sys_email: currentUser.email,

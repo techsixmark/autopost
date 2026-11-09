@@ -481,6 +481,10 @@
               <label>CTA cuối bài</label>
               <input type="text" id="tg-cta" placeholder="VD: 👉 Xem thêm tại link dưới đây" />
             </div>
+            <div class="field">
+              <label>Banner URL</label>
+              <input type="url" id="tg-banner" placeholder="https://…/banner.png" />
+            </div>
           </div>
           <!-- Right: sys info -->
           <div>
@@ -1036,6 +1040,7 @@ function buildReview() {
     const useDefault = document.getElementById("tg-use-default").checked;
     const linkBackup = document.getElementById("tg-link-backup").value;
     const ctaText    = document.getElementById("tg-cta").value;
+    const tgBanner   = document.getElementById("tg-banner").value;
     const aiAgent    = document.getElementById("tg-ai").checked;
     const dtDisplay  = tgDt ? new Date(tgDt).toLocaleString("vi-VN",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}) : "—";
     document.getElementById("btnCreate").innerHTML = `✍️ Tạo <span id="runCount">${selPages.length}</span> bài đăng`;
@@ -1047,6 +1052,7 @@ function buildReview() {
           ${content ? `<div class="review-row"><span class="rk">Nội dung:</span><span class="rv">${esc(trunc(content,80))}</span></div>` : ""}
           <div class="review-row"><span class="rk">Link:</span><span class="rv" style="color:var(--tg);font-size:12px">${useDefault ? '🔗 Dùng link default' : esc(trunc(linkBackup||'—',40))}</span></div>
           ${ctaText ? `<div class="review-row"><span class="rk">CTA:</span><span class="rv">${esc(ctaText)}</span></div>` : ""}
+          ${tgBanner ? `<div class="review-row"><span class="rk">Banner URL:</span><span class="rv" style="color:#60a5fa;font-size:12px">${esc(trunc(tgBanner,40))}</span></div>` : ""}
           <div class="review-row"><span class="rk">AI Agent:</span><span class="rv" style="color:${aiAgent?'#2dd4bf':'var(--muted)'}">${aiAgent?"Bật":"Tắt"}</span></div>
           <div class="review-row"><span class="rk">Template:</span><span class="rv">${esc(tpl.name)}</span></div>
         </div>
@@ -1196,6 +1202,7 @@ async function runExecution() {
       const useDefault = document.getElementById("tg-use-default").checked;
       const linkBackup = document.getElementById("tg-link-backup").value.trim() || null;
       const ctaText    = document.getElementById("tg-cta").value.trim() || null;
+      const tgBanner   = document.getElementById("tg-banner").value.trim() || null;
       const aiAgent    = document.getElementById("tg-ai").checked;
 
       const inserts = selPages.map(p => {
@@ -1209,6 +1216,7 @@ async function runExecution() {
           use_default_link: useDefault,
           link_backup:      useDefault ? null : linkBackup,
           cta_text:         ctaText,
+          banner_url:       tgBanner,
           ai_agent:         aiAgent,
           sys_chat_id:      p.page_uid || null,
           sys_tg_link:      p.tg_link  || null,
@@ -1493,7 +1501,7 @@ function startStatusPolling(jobIds, jobMap, selPages, table = "fb_autopost_jobs"
 // khi bấm "Tạo bài đăng mới".
 function clearFormFields() {
   const text = ["fb-date","fb-content-type","fb-tiktok","fb-banner","fb-cmt","fb-content",
-                "tg-datetime","tg-content","tg-link-backup","tg-cta",
+                "tg-datetime","tg-content","tg-link-backup","tg-cta","tg-banner",
                 "ig-content","ig-topic","ig-video-link"];
   text.forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
   const igCtype = document.getElementById("ig-content-type"); if (igCtype) igCtype.value = "image";
