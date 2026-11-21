@@ -276,6 +276,7 @@
         <a class='nav-link' href='/admin-fb-autopost'>📘 FB Autopost</a>
         <a class='nav-link' href='/admin-tg-autopost'>✈️ TG Autopost</a>
         <a class='nav-link' href='/admin-ig-thread-autopost'>📸 IG/Thread Autopost</a>
+        <a class='nav-link' href='/admin-downloader'>🎬 Video Downloader</a>
         <div class="nav-group-label">THEO DÕI</div>
         <a class='nav-link' href='/admin-jobs'>📋 Bài đăng</a>
         <a class='nav-link nav-editor' href='/admin-stats'>📊 Thống kê</a>
@@ -400,7 +401,10 @@
             </div>
             <div class="field">
               <label>TikTok URL (nguồn video)</label>
-              <input type="url" id="fb-tiktok" placeholder="https://www.tiktok.com/@…" />
+              <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+                <input type="url" id="fb-tiktok" placeholder="https://www.tiktok.com/@…" style="flex:1 1 220px;min-width:0" />
+                <button type="button" class="btn btn-ghost" style="white-space:nowrap;flex-shrink:0" onclick="openDownloaderPicker({ targetInput: 'fb-tiktok', captionInput: 'fb-content' })" title="Chọn video đã xử lý từ Universal Video Downloader">🎬 Chọn từ Downloader</button>
+              </div>
             </div>
             <div class="field">
               <label>Banner URL</label>
@@ -503,7 +507,10 @@
           <div style="display:flex;flex-direction:column;gap:16px;">
             <div class="field">
               <label>Input link gốc</label>
-              <input type="url" id="ig-video-link" placeholder="https://…" />
+              <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+                <input type="url" id="ig-video-link" placeholder="https://…" style="flex:1 1 220px;min-width:0" />
+                <button type="button" class="btn btn-ghost" style="white-space:nowrap;flex-shrink:0" onclick="openDownloaderPicker({ targetInput: 'ig-video-link', captionInput: 'ig-content', selectValues: { 'ig-content-type': 'video' } })" title="Chọn video đã xử lý từ Universal Video Downloader">🎬 Chọn từ Downloader</button>
+              </div>
               <span class="hint">Nguồn video để n8n xử lý</span>
             </div>
             <div class="field">
@@ -600,6 +607,7 @@
 <div class="toast" id="toast"></div>
 <script src="/shared.js"></script>
 <script src="/auth-guard.js"></script>
+<script src="/downloader-picker.js"></script>
 <script>
 // ── Constants ─────────────────────────────────────────────────
 const PLAT_ICON  = { facebook:"📘", thread:"🧵", x:"𝕏", telegram:"✈️", instagram:"📸", tiktok:"🎵" };

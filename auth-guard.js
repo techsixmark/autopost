@@ -21,6 +21,7 @@ const PAGE_PERMISSIONS = {
   "fb-autopost": "viewer",
   "tg-autopost": "viewer",
   "ig-thread-autopost": "viewer",
+  "downloader":  "viewer",
   "bulk":        "editor",
   "tokens":      "admin",
   "keygen":      "admin",

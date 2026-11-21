@@ -195,6 +195,7 @@
         <a class='nav-link' href='/admin-fb-autopost'>📘 FB Autopost</a>
         <a class='nav-link' href='/admin-tg-autopost'>✈️ TG Autopost</a>
         <a class='nav-link active' href='/admin-ig-thread-autopost'>📸 IG/Thread Autopost</a>
+        <a class='nav-link' href='/admin-downloader'>🎬 Video Downloader</a>
         <div class="nav-group-label">THEO DÕI</div>
         <a class='nav-link' href='/admin-jobs'>📋 Bài đăng</a>
         <a class='nav-link nav-editor' href='/admin-stats'>📊 Thống kê</a>
@@ -318,7 +319,10 @@
       <!-- Video link -->
       <div class="field">
         <label>Input link gốc</label>
-        <input type="url" id="mVideoLink" placeholder="https://…" />
+        <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+          <input type="url" id="mVideoLink" placeholder="https://…" style="flex:1 1 220px;min-width:0" />
+          <button type="button" class="btn btn-ghost" style="white-space:nowrap;flex-shrink:0" onclick="openDownloaderPicker({ targetInput: 'mVideoLink' })" title="Chọn video đã xử lý từ Universal Video Downloader">🎬 Chọn từ Downloader</button>
+        </div>
         <span class="hint">Nguồn video để n8n xử lý</span>
       </div>
 
@@ -407,6 +411,7 @@
 
 <script src="/shared.js"></script>
 <script src="/auth-guard.js"></script>
+<script src="/downloader-picker.js"></script>
 <script>
 let currentUser = null;
 let allJobs = [];
@@ -691,7 +696,7 @@ function openDetail(jobId) {
       <div class="detail-row"><span class="dk">Page</span><span class="dv"><strong>${esc(job.page_name||'—')}</strong></span></div>
       <div class="detail-row"><span class="dk">Nền tảng</span><span class="dv"><span class="plat-badge ${job.platform}">${job.platform==='instagram'?'📸 Instagram':'🧵 Thread'}</span></span></div>
       <div class="detail-row"><span class="dk">Topic</span><span class="dv">${esc(job.topic||'—')}</span></div>
-      <div class="detail-row"><span class="dk">Link video nguồn</span><span class="dv">${job.input_link_video ? `<a href="${job.input_link_video}" target="_blank">${esc(job.input_link_video)}</a>` : '—'}</span></div>
+      <div class="detail-row"><span class="dk">Link video nguồn</span><span class="dv">${job.input_link_video ? `<a href="${esc(dlSafeUrl(job.input_link_video))}" target="_blank" rel="noopener">${esc(job.input_link_video)}</a>` : '—'}</span></div>
       <div class="detail-row"><span class="dk">Tạo lúc</span><span class="dv">${fmtDateTime(job.created_at)}</span></div>
 
       <div style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Kết quả n8n</div>
