@@ -81,6 +81,24 @@
     .empty { padding:40px 20px; text-align:center; color:var(--muted); font-size:13px; line-height:1.7; }
     .num { white-space:nowrap; color:var(--text2); }
 
+    /* download requests */
+    .card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px; margin-top:18px; }
+    .card h2 { font-size:15px; font-weight:700; margin-bottom:4px; }
+    .card .hint { font-size:12px; color:var(--muted); line-height:1.55; }
+    .req-form { display:grid; gap:10px; margin-top:12px; }
+    .req-form textarea { width:100%; min-height:84px; padding:9px 12px; border:1px solid var(--border); border-radius:8px; background:var(--surface2); color:var(--text); font-size:13px; font-family:inherit; resize:vertical; }
+    .req-form select, .req-form input[type=text] { padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:var(--surface2); color:var(--text); font-size:13px; }
+    .req-row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .req-row > * { min-width:0; }
+    .rights { display:flex; gap:8px; align-items:flex-start; font-size:12.5px; color:var(--text2); line-height:1.5; }
+    .rights input { margin-top:3px; }
+    .st { display:inline-block; font-size:11.5px; padding:2px 8px; border-radius:999px; background:var(--surface3); color:var(--text2); white-space:nowrap; }
+    .st-ok { background:#dcfce7; color:#15803d; } .st-err { background:#fee2e2; color:#b91c1c; } .st-run { background:#e0e7ff; color:#4338ca; } .st-warn { background:#fef3c7; color:#b45309; }
+    html[data-theme="dark"] .st-ok { background:#14532d; color:#4ade80; } html[data-theme="dark"] .st-err { background:#450a0a; color:#fca5a5; }
+    html[data-theme="dark"] .st-run { background:#1e1b4b; color:#a5b4fc; } html[data-theme="dark"] .st-warn { background:#451a03; color:#fcd34d; }
+    .req-url { font-size:12px; color:var(--muted); max-width:360px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block; }
+    .req-err { font-size:11.5px; color:var(--danger); margin-top:3px; max-width:420px; white-space:normal; }
+    .section-title { font-size:15px; font-weight:700; margin-top:26px; }
     .toast { position:fixed; bottom:24px; right:24px; background:var(--surface2); border:1px solid var(--border2); border-radius:10px; padding:12px 16px; font-size:13px; z-index:9999; box-shadow:0 8px 24px rgba(0,0,0,.25); transform:translateY(80px); opacity:0; transition:all .25s; pointer-events:none; max-width:360px; color:var(--text); }
     .toast.show { transform:translateY(0); opacity:1; }
     .toast.success { border-left:3px solid var(--success); }
@@ -155,6 +173,41 @@
         <div class="sub">Video đã xử lý xong ở Universal Video Downloader và đã lên Google Drive (link công khai).
           Không có bài nào tự đăng: bạn chọn video khi tạo bài.</div>
 
+        <div class="card nav-editor">
+          <h2>⬇️ Tải video mới</h2>
+          <div class="hint">Dán link video (mỗi dòng 1 link, tối đa 20). Máy chạy Universal Video Downloader sẽ tự nhận việc
+            (khoảng 15 giây/lần), tải, dò và xử lý watermark. Video xong và lên Drive sẽ hiện ở thư viện bên dưới.
+            Máy Downloader phải đang bật và đã bật "Nhận yêu cầu tải video từ Autopost".</div>
+          <form class="req-form" id="reqForm" onsubmit="submitRequests(event)">
+            <textarea id="reqUrls" placeholder="https://www.tiktok.com/@kenh/video/…&#10;https://www.youtube.com/shorts/…" required></textarea>
+            <div class="req-row">
+              <select id="reqMode" title="Cách xử lý watermark">
+                <option value="">Cách xử lý: theo cài đặt của Downloader</option>
+                <option value="AUTO">Tự động</option>
+                <option value="PRESERVE">Giữ nguyên (chỉ báo cáo)</option>
+                <option value="MANUAL">Thủ công (duyệt trên máy Downloader)</option>
+                <option value="PREMIUM">Premium (AI)</option>
+              </select>
+              <input type="text" id="reqNote" maxlength="500" placeholder="Ghi chú (không bắt buộc)" style="flex:1 1 200px" />
+            </div>
+            <label class="rights"><input type="checkbox" id="reqRights" required />
+              <span>Tôi xác nhận tôi sở hữu hoặc được cấp quyền tải và chỉnh sửa các video này. Không dùng để vượt DRM,
+                đăng nhập hay giới hạn của nền tảng.</span></label>
+            <div><button type="submit" class="btn btn-primary" id="reqSubmit">⬇️ Gửi yêu cầu tải</button></div>
+          </form>
+        </div>
+
+        <div class="section-title">📥 Yêu cầu tải gần đây <span class="count" id="reqCount"></span>
+          <button class="btn btn-ghost btn-sm" style="margin-left:8px" onclick="loadRequests()">↻</button></div>
+        <div class="table-wrap" style="margin-top:10px">
+          <table>
+            <thead><tr><th>Link</th><th>Trạng thái</th><th>Người gửi</th><th>Gửi lúc</th><th style="text-align:right">Thao tác</th></tr></thead>
+            <tbody id="reqBody"><tr><td colspan="5" class="empty">Đang tải…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="hint" id="reqStale" style="display:none;margin-top:8px;font-size:12px;color:var(--warn)"></div>
+
+        <div class="section-title">📚 Thư viện video</div>
         <div class="toolbar">
           <input id="searchInput" class="search-input" type="text" placeholder="Tìm theo tiêu đề hoặc link gốc…" autocomplete="off" />
           <label class="chk nav-editor"><input type="checkbox" id="showHidden" /> Hiện cả video đã ẩn</label>
@@ -173,6 +226,8 @@
 
         <div class="help">
           <b>Cách dùng</b><br>
+          0. <b>Tải video mới</b> (editor): dán link, xác nhận quyền, bấm Gửi. Theo dõi ở bảng "Yêu cầu tải gần đây".
+          Video "Cần xem lại" được duyệt trên dashboard Downloader của máy đó.<br>
           1. Vào <b>✍️ Tạo bài đăng</b> (hoặc nút Sửa trong FB / IG-Threads Autopost), ở ô link video bấm
           <b>🎬 Chọn từ Downloader</b> → chọn video. Ô link được điền sẵn link tải trực tiếp; nếu ô nội dung còn trống thì điền tiêu đề video.<br>
           2. Hoặc bấm <b>📋 Link tải</b> ở bảng trên rồi dán vào ô link video của form bất kỳ.<br>
@@ -192,6 +247,149 @@
 <script src="/downloader-picker.js"></script>
 <script>
 let currentRole = "viewer";
+let reqRows = [];
+let reqTimer = null;
+let libraryIds = new Set();
+
+const REQ_STATUS = {
+  pending:      ["⏳ Chờ máy nhận", "st-warn"],
+  claimed:      ["📥 Máy đã nhận", "st-run"],
+  downloading:  ["⬇️ Đang tải", "st-run"],
+  scanning:     ["🔍 Đang dò watermark", "st-run"],
+  processing:   ["⚙️ Đang xử lý", "st-run"],
+  completed:    ["✅ Hoàn tất", "st-ok"],
+  needs_review: ["👀 Cần xem lại", "st-warn"],
+  failed:       ["❌ Lỗi", "st-err"],
+  duplicate:    ["♻️ Trùng video khác", "st"],
+  cancelled:    ["🚫 Đã huỷ", "st"],
+};
+const REQ_ACTIVE = new Set(["pending", "claimed", "downloading", "scanning", "processing"]);
+
+async function loadRequests() {
+  const body = document.getElementById("reqBody");
+  const sb = getSB();
+  const { data, error } = await sb.from("downloader_requests")
+    .select("id,url,status,action,error,video_id,title,processing_mode,note,requested_email,created_at,claimed_at,finished_at,updated_at")
+    .order("created_at", { ascending: false }).limit(50);
+  if (error) {
+    body.innerHTML = `<tr><td colspan="5" class="empty" style="color:var(--danger)">Không tải được yêu cầu: ${escHtml(error.message)}</td></tr>`;
+    scheduleRefresh(true);
+    return;
+  }
+  reqRows = data || [];
+  const vids = reqRows.filter(r => r.video_id).map(r => r.video_id);
+  libraryIds = new Set();
+  if (vids.length) {
+    const { data: lib } = await sb.from("downloader_videos").select("source_video_id").in("source_video_id", vids);
+    (lib || []).forEach(x => libraryIds.add(Number(x.source_video_id)));
+  }
+  document.getElementById("reqCount").textContent = reqRows.length ? `(${reqRows.length})` : "";
+  if (!reqRows.length) {
+    body.innerHTML = `<tr><td colspan="5" class="empty">Chưa có yêu cầu nào.</td></tr>`;
+  } else {
+    const isEditor = canDo(currentRole, "editor");
+    body.innerHTML = reqRows.map((r, i) => {
+      const [label, cls] = REQ_STATUS[r.status] || [r.status, "st"];
+      let extra = "";
+      if (r.status === "completed") {
+        extra = libraryIds.has(Number(r.video_id))
+          ? `<div class="v-meta">Đã có trong thư viện bên dưới</div>`
+          : `<div class="v-meta">Chưa lên Drive / chưa gửi sang thư viện (kiểm tra Google Drive và Autopost trong Cài đặt của Downloader)</div>`;
+      } else if (r.status === "needs_review") {
+        extra = `<div class="v-meta">Mở dashboard Downloader trên máy để xem và bấm Duyệt (video #${escHtml(r.video_id)})</div>`;
+      } else if (r.status === "duplicate") {
+        extra = `<div class="v-meta">Trùng nội dung với một video đã có trên máy Downloader</div>`;
+      }
+      if (r.action === "retry") extra += `<div class="v-meta">Đã yêu cầu chạy lại, chờ máy nhận…</div>`;
+      const acts = [];
+      if (isEditor && r.status === "pending") acts.push(`<button class="btn btn-ghost btn-sm" onclick="reqAction(${i},'cancel')">Huỷ</button>`);
+      if (isEditor && (r.status === "failed" || r.status === "needs_review") && !r.action)
+        acts.push(`<button class="btn btn-ghost btn-sm" onclick="reqAction(${i},'retry')">Chạy lại</button>`);
+      return `<tr>
+        <td>
+          ${r.title ? `<div class="v-title" title="${escHtml(r.title)}">${escHtml(r.title)}</div>` : ""}
+          <a class="req-url" href="${escHtml(dlSafeUrl(r.url))}" target="_blank" rel="noopener" title="${escHtml(r.url)}">${escHtml(r.url)}</a>
+          ${r.note ? `<div class="v-meta">📝 ${escHtml(r.note)}</div>` : ""}
+        </td>
+        <td class="col-num"><span class="st ${cls}">${label}</span>${r.error ? `<div class="req-err">${escHtml(r.error)}</div>` : ""}${extra}</td>
+        <td class="num col-num" style="font-size:12px">${escHtml(r.requested_email || "—")}</td>
+        <td class="num col-num">${dlFmtDate(r.created_at)}</td>
+        <td><div class="actions">${acts.join("")}</div></td>
+      </tr>`;
+    }).join("");
+  }
+  // Waiting for a while = the Downloader machine is probably off or the feature is off.
+  const now = Date.now();
+  const waiting = reqRows.some(r => r.status === "pending" && now - new Date(r.created_at).getTime() > 2 * 60 * 1000);
+  const silent = reqRows.some(r => r.status !== "pending" && REQ_ACTIVE.has(r.status)
+    && now - new Date(r.updated_at || r.created_at).getTime() > 30 * 60 * 1000);
+  const stale = document.getElementById("reqStale");
+  if (waiting || silent) {
+    stale.style.display = "block";
+    stale.textContent = waiting
+      ? "⚠️ Có yêu cầu chờ hơn 2 phút: máy Downloader có thể đang tắt, hoặc chưa bật \"Nhận yêu cầu tải video từ Autopost\" (Cài đặt → Autopost)."
+      : "⚠️ Có yêu cầu đang chạy nhưng hơn 30 phút chưa cập nhật: máy Downloader có thể đang tắt.";
+  } else {
+    stale.style.display = "none";
+  }
+  scheduleRefresh(false);
+}
+
+// Auto refresh while something is running: every 10 s, slower when nothing changes for long,
+// paused while the tab is hidden; after an error, try again in 60 s.
+let reqIdleRounds = 0;
+let reqLastSig = "";
+function scheduleRefresh(afterError) {
+  clearTimeout(reqTimer);
+  if (afterError) { reqTimer = setTimeout(tickRefresh, 60000); return; }
+  if (!reqRows.some(r => REQ_ACTIVE.has(r.status) || r.action)) return;
+  const sig = reqRows.map(r => r.id + r.status + (r.action || "")).join("|");
+  reqIdleRounds = sig === reqLastSig ? reqIdleRounds + 1 : 0;
+  reqLastSig = sig;
+  reqTimer = setTimeout(tickRefresh, Math.min(60000, 10000 * (1 + Math.floor(reqIdleRounds / 6))));
+}
+function tickRefresh() {
+  if (document.hidden) return; // resumed by visibilitychange
+  loadRequests();
+  loadVideos();
+}
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && reqRows.some(r => REQ_ACTIVE.has(r.status) || r.action)) tickRefresh();
+});
+
+async function submitRequests(e) {
+  e.preventDefault();
+  const lines = document.getElementById("reqUrls").value.split(/\s+/).map(s => s.trim()).filter(Boolean);
+  const urls = [...new Set(lines)];
+  if (!urls.length) { toast("Hãy dán ít nhất 1 link", "error"); return; }
+  if (urls.length > 20) { toast("Tối đa 20 link mỗi lần", "error"); return; }
+  const bad = urls.filter(u => !/^https?:\/\/\S+$/i.test(u) || u.length > 2000);
+  if (bad.length) { toast(`Link không hợp lệ: ${bad[0].slice(0, 60)}`, "error"); return; }
+  if (!document.getElementById("reqRights").checked) { toast("Cần xác nhận quyền với video", "error"); return; }
+  const mode = document.getElementById("reqMode").value || null;
+  const note = document.getElementById("reqNote").value.trim() || null;
+  const btn = document.getElementById("reqSubmit");
+  btn.disabled = true;
+  const { error } = await getSB().from("downloader_requests")
+    .insert(urls.map(url => ({ url, rights_confirmed: true, processing_mode: mode, note })));
+  btn.disabled = false;
+  if (error) { toast("Không gửi được: " + error.message, "error"); return; }
+  document.getElementById("reqUrls").value = "";
+  document.getElementById("reqNote").value = "";
+  document.getElementById("reqRights").checked = false;
+  toast(`Đã gửi ${urls.length} yêu cầu tải`);
+  loadRequests();
+}
+
+async function reqAction(i, action) {
+  const r = reqRows[i];
+  if (!r) return;
+  if (action === "cancel" && !confirm("Huỷ yêu cầu tải này?")) return;
+  const { error } = await getSB().rpc("downloader_request_action", { p_id: r.id, p_action: action });
+  if (error) { toast(error.message, "error"); return; }
+  toast(action === "cancel" ? "Đã huỷ yêu cầu" : "Đã yêu cầu chạy lại");
+  loadRequests();
+}
 let rows = [];
 let searchTimer = null;
 
@@ -268,6 +466,7 @@ initAuthGuard({ page: "downloader", onReady: ({ role }) => {
   });
   document.getElementById("showHidden").addEventListener("change", loadVideos);
   loadVideos();
+  loadRequests();
 }});
 </script>
 </body>

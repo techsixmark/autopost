@@ -10,7 +10,7 @@ Hướng dẫn cho Claude Code khi làm việc trong repo Autopost.
 - **n8n**: đọc job `pending`, đăng bài, ghi `n8n_status`; trigger `sync_*_status_from_n8n` tự đổi `status` theo `n8n_status`.
 - **Chạy ở đâu**: giao diện trên Vercel (push lên `main` là tự deploy), Supabase cloud (project `hpsoflovdjvgfrejovvu`), n8n Cloud. Việc chuyển lên VPS đã hủy (xem `docs/DECISIONS.md`).
 
-- **Universal Video Downloader** (repo `techsixmark/6m-universal-downloader`, chạy local): đẩy video đã lên Google Drive vào `downloader_videos` qua RPC `ingest_downloader_video` (API key `/admin-keygen`). Trang `admin-downloader.html` + `downloader-picker.js` (nút "🎬 Chọn từ Downloader") chỉ đọc; không tự tạo job.
+- **Universal Video Downloader** (repo `techsixmark/6m-universal-downloader`, chạy local): đẩy video đã lên Google Drive vào `downloader_videos` qua RPC `ingest_downloader_video` (API key `/admin-keygen`). Trang `admin-downloader.html` + `downloader-picker.js` (nút "🎬 Chọn từ Downloader") không tự tạo job. Trang đó còn có "Tải video mới": ghi `downloader_requests`, máy Downloader tự nhận việc (`downloader_claim_requests` / `downloader_report_requests`).
 
 ## Quy ước
 
