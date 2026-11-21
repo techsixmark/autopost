@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Autopost — Video từ Downloader</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+  --bg:#f4f6f9; --surface:#ffffff; --surface2:#f4f6f9; --surface3:#eef1f6;
+  --border:#dde1e7; --border2:#e2e6ec; --text:#1a1d24; --text2:#374151;
+  --muted:#6b7280; --muted2:#9ca3af; --muted3:#c0c7d1;
+  --accent:#7c5cff; --accent-h:#6b4ef0;
+  --danger:#ef4444; --success:#22c55e; --warn:#f59e0b;
+  --fb:#1877f2; --x:#1da1f2; --tg:#2aabee; --ig:#e1306c;
+  --sidebar-w:248px;
+}
+    body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    .topbar { height:52px; background:var(--surface); border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 24px; gap:12px; position:sticky; top:0; z-index:100; }
+    .sep { flex:1; }
+    .topbar-user { font-size:13px; color:var(--muted); display:flex; align-items:center; gap:10px; }
+    .avatar { width:28px; height:28px; border-radius:50%; background:var(--surface2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; overflow:hidden; font-size:14px; }
+    .btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:8px; border:none; font-size:13px; font-weight:500; cursor:pointer; transition:background .15s,opacity .15s; text-decoration:none; white-space:nowrap; }
+    .btn:disabled { opacity:.4; cursor:not-allowed; }
+    .btn-primary { background:var(--accent); color:#fff; }
+    .btn-primary:hover:not(:disabled) { background:var(--accent-h); }
+    .btn-ghost { background:transparent; color:var(--muted); border:1px solid var(--border); }
+    .btn-ghost:hover { background:var(--surface2); color:var(--text); }
+    .btn-sm { padding:5px 10px; font-size:12px; }
+    .btn-google { background:#fff; color:#111; width:100%; justify-content:center; padding:11px 16px; font-size:14px; border-radius:10px; margin-top:8px; border:1px solid #ddd; }
+
+    .login-screen { min-height:100vh; display:flex; align-items:center; justify-content:center; }
+    .login-card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:40px; width:100%; max-width:380px; text-align:center; }
+    .login-card h2 { font-size:22px; font-weight:700; margin-bottom:6px; }
+    .login-card p { font-size:14px; color:var(--muted); margin-bottom:28px; }
+
+    /* nav sidebar */
+    .nav-sb { width:196px; flex-shrink:0; background:#0d0d0d; border-right:1px solid #1e1e1e; display:flex; flex-direction:column; overflow:hidden; }
+    .nav-brand { padding:15px 14px 13px; border-bottom:1px solid #1e1e1e; display:flex; align-items:center; }
+    .nav-logo { font-size:15px; font-weight:800; letter-spacing:-.5px; color:var(--text); }
+    .nav-logo b { color:var(--accent); }
+    .nav-links { flex:1; padding:7px 6px; overflow-y:auto; display:flex; flex-direction:column; gap:1px; }
+    .nav-link { display:flex; align-items:center; gap:7px; padding:7px 9px; border-radius:7px; text-decoration:none; color:#555; font-size:12px; transition:all .1s; white-space:nowrap; }
+    .nav-link:hover { background:#161616; color:#ccc; }
+    .nav-link.active { background:#1a1a2a; color:#a5b4fc; font-weight:500; }
+    body[data-role="viewer"] .nav-admin,
+    body[data-role="editor"] .nav-admin { display:none; }
+    body[data-role="viewer"] .nav-editor { display:none; }
+    .app-layout { display:flex; height:calc(100vh - 52px); overflow:hidden; }
+    .app-main { flex:1; overflow:auto; min-width:0; }
+
+    /* page */
+    .main { padding:24px; max-width:1180px; margin:0 auto; }
+    h1 { font-size:20px; font-weight:700; }
+    .sub { color:var(--muted); font-size:13px; margin-top:4px; line-height:1.55; }
+    .toolbar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:18px 0 14px; }
+    .search-input { flex:1; min-width:200px; padding:9px 12px; border:1px solid var(--border); border-radius:8px; background:var(--surface); color:var(--text); font-size:13px; outline:none; }
+    .search-input:focus { border-color:var(--accent); }
+    .chk { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); cursor:pointer; user-select:none; }
+    .count { font-size:12px; color:var(--muted); }
+    .help { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px 16px; font-size:12.5px; color:var(--muted); line-height:1.7; margin-top:16px; }
+    .help b { color:var(--text); }
+    .help code { font-size:11.5px; background:var(--surface2); padding:1px 5px; border-radius:4px; word-break:break-all; }
+
+    .table-wrap { background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow-x:auto; }
+    table { width:100%; border-collapse:collapse; font-size:13px; }
+    th { text-align:left; padding:10px 12px; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); background:var(--surface2); border-bottom:1px solid var(--border); white-space:nowrap; }
+    td { padding:10px 12px; border-top:1px solid var(--border); vertical-align:middle; }
+    tbody tr:first-child td { border-top:none; }
+    tr.hidden-row td { opacity:.55; }
+    .v-title { font-weight:600; color:var(--text); max-width:320px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .v-meta { font-size:11px; color:var(--muted); margin-top:3px; }
+    .v-meta a { color:var(--muted); }
+    .chip { display:inline-block; font-size:11px; padding:2px 8px; border-radius:999px; background:var(--surface3); color:var(--text2); white-space:nowrap; }
+    .chip-ok { background:#ede9fe; color:#6d28d9; }
+    html[data-theme="dark"] .chip-ok { background:#2e1f5e; color:#c4b5fd; }
+    .actions { display:flex; flex-direction:column; gap:6px; align-items:stretch; }
+    .actions .btn { justify-content:center; }
+    .empty { padding:40px 20px; text-align:center; color:var(--muted); font-size:13px; line-height:1.7; }
+    .num { white-space:nowrap; color:var(--text2); }
+
+    .toast { position:fixed; bottom:24px; right:24px; background:var(--surface2); border:1px solid var(--border2); border-radius:10px; padding:12px 16px; font-size:13px; z-index:9999; box-shadow:0 8px 24px rgba(0,0,0,.25); transform:translateY(80px); opacity:0; transition:all .25s; pointer-events:none; max-width:360px; color:var(--text); }
+    .toast.show { transform:translateY(0); opacity:1; }
+    .toast.success { border-left:3px solid var(--success); }
+    .toast.error { border-left:3px solid var(--danger); }
+
+    /* phone: hide nav, stack table rows as cards */
+    @media (max-width: 760px) {
+      .nav-sb { display:none; }
+      .topbar { padding:0 16px; }
+      #topbarEmail { display:none; }
+      .main { padding:16px; }
+      thead { display:none; }
+      table, tbody, tr, td { display:block; width:100%; }
+      tr { border-top:1px solid var(--border); padding:10px 12px; }
+      tbody tr:first-child { border-top:none; }
+      td { border:none; padding:3px 0; }
+      td.col-num { display:inline-block; width:auto; margin-right:12px; font-size:12px; }
+      .v-title { max-width:100%; white-space:normal; }
+      .actions { flex-direction:row; flex-wrap:wrap; margin-top:6px; }
+    }
+  </style>
+  <link rel="stylesheet" href="/shared.css" />
+</head>
+<body>
+
+<div id="loginScreen" class="login-screen" style="display:none">
+  <div class="login-card">
+    <div style="font-size:32px;margin-bottom:16px">🎬</div>
+    <h2>Autopost</h2>
+    <p>Video từ Downloader</p>
+    <button class="btn btn-google" id="btnGoogleLogin">
+      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 32.5 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.7-8 19.7-20 0-1.3-.1-2.7-.1-4z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 16 19 12 24 12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 16.1 4 9.3 8.4 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-1.9 13.5-5l-6.2-5.2C29.4 35.6 26.8 36 24 36c-5.2 0-9.6-3.4-11.2-8.1L6.2 33C9.2 39.5 16 44 24 44z"/><path fill="#1976D2" d="M43.6 20H24v8h11.3c-.8 2.3-2.3 4.3-4.3 5.8l6.2 5.2C41.2 35.5 44 30.2 44 24c0-1.3-.1-2.7-.4-4z"/></svg>
+      Đăng nhập bằng Google
+    </button>
+  </div>
+</div>
+
+<div id="appScreen" style="display:none">
+  <div class="topbar">
+    <div class="topbar-crumb"><span class="crumb-root">Autopost</span><span class="crumb-sep">›</span><span class="crumb-page">Đăng bài · Video từ Downloader</span></div>
+    <div class="sep"></div>
+    <div class="topbar-user">
+      <div class="avatar" id="avatarWrap"></div>
+      <span id="topbarEmail"></span>
+      <button class="btn btn-ghost" style="font-size:12px;padding:5px 10px" data-action="logout">Đăng xuất</button>
+    </div>
+  </div>
+
+  <div class="app-layout">
+    <div class="nav-sb">
+      <div class="nav-brand"><span class="nav-logo">Auto<b>post</b></span><button class="theme-toggle" id="themeToggleBtn" onclick="toggleTheme()" title="Đổi giao diện" style="margin-left:auto">🌙</button></div>
+                  <nav class="nav-links">
+        <a class='nav-link' href='/'>🏠 Home</a>
+        <div class="nav-group-label nav-editor">ĐĂNG BÀI</div>
+        <a class='nav-link nav-editor' href='/admin-execution'>✍️ Tạo bài đăng</a>
+        <a class='nav-link' href='/admin-fb-autopost'>📘 FB Autopost</a>
+        <a class='nav-link' href='/admin-tg-autopost'>✈️ TG Autopost</a>
+        <a class='nav-link' href='/admin-ig-thread-autopost'>📸 IG/Thread Autopost</a>
+        <a class='nav-link active' href='/admin-downloader'>🎬 Video Downloader</a>
+        <div class="nav-group-label">THEO DÕI</div>
+        <a class='nav-link' href='/admin-jobs'>📋 Bài đăng</a>
+        <a class='nav-link nav-editor' href='/admin-stats'>📊 Thống kê</a>
+        <div class="nav-group-label">HỆ THỐNG</div>
+        <a class='nav-link nav-editor' href='/admin-pages'>📡 Page List</a>
+        <a class='nav-link nav-admin' href='/admin-users'>👥 Users</a>
+      </nav>
+    </div>
+
+    <div class="app-main">
+      <div class="main">
+        <h1>🎬 Video từ Downloader</h1>
+        <div class="sub">Video đã xử lý xong ở Universal Video Downloader và đã lên Google Drive (link công khai).
+          Không có bài nào tự đăng: bạn chọn video khi tạo bài.</div>
+
+        <div class="toolbar">
+          <input id="searchInput" class="search-input" type="text" placeholder="Tìm theo tiêu đề hoặc link gốc…" autocomplete="off" />
+          <label class="chk nav-editor"><input type="checkbox" id="showHidden" /> Hiện cả video đã ẩn</label>
+          <button class="btn btn-ghost btn-sm" onclick="loadVideos()">↻ Tải lại</button>
+          <span class="count" id="countLabel"></span>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Video</th><th>Thời lượng</th><th>Kích thước</th><th>Dung lượng</th><th>Xong lúc</th><th style="text-align:right">Thao tác</th>
+            </tr></thead>
+            <tbody id="videoBody"><tr><td colspan="6" class="empty">Đang tải…</td></tr></tbody>
+          </table>
+        </div>
+
+        <div class="help">
+          <b>Cách dùng</b><br>
+          1. Vào <b>✍️ Tạo bài đăng</b> (hoặc nút Sửa trong FB / IG-Threads Autopost), ở ô link video bấm
+          <b>🎬 Chọn từ Downloader</b> → chọn video. Ô link được điền sẵn link tải trực tiếp; nếu ô nội dung còn trống thì điền tiêu đề video.<br>
+          2. Hoặc bấm <b>📋 Link tải</b> ở bảng trên rồi dán vào ô link video của form bất kỳ.<br>
+          3. <b>Ẩn</b> chỉ bỏ video khỏi danh sách chọn, không xoá file trên Drive.<br>
+          <span style="color:var(--muted2)">Link tải có dạng <code>drive.usercontent.google.com/download?id=…</code>: ai có link đều tải được.
+          Telegram chưa có ô link video trong form nên chỉ dùng được cách 2 (dán link vào nội dung).</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="/shared.js"></script>
+<script src="/auth-guard.js"></script>
+<script src="/downloader-picker.js"></script>
+<script>
+let currentRole = "viewer";
+let rows = [];
+let searchTimer = null;
+
+function toast(msg, type = "success") {
+  const el = document.getElementById("toast");
+  el.textContent = (type === "success" ? "✓  " : "✕  ") + msg;
+  el.className = `toast ${type} show`;
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => el.classList.remove("show"), 3500);
+}
+
+async function loadVideos() {
+  const body = document.getElementById("videoBody");
+  const includeHidden = canDo(currentRole, "editor") && document.getElementById("showHidden").checked;
+  try {
+    rows = await fetchDownloaderVideos({
+      includeHidden, search: document.getElementById("searchInput").value, limit: 500,
+    });
+  } catch (e) {
+    body.innerHTML = `<tr><td colspan="6" class="empty" style="color:var(--danger)">Không tải được danh sách: ${escHtml(e.message)}</td></tr>`;
+    return;
+  }
+  document.getElementById("countLabel").textContent = `${rows.length} video`;
+  if (!rows.length) {
+    body.innerHTML = `<tr><td colspan="6" class="empty">Chưa có video nào.<br>
+      Video xuất hiện ở đây khi Downloader xử lý xong và đẩy lên Google Drive
+      (cần bật "Gửi sang Autopost" trong Cài đặt của Downloader).</td></tr>`;
+    return;
+  }
+  const isEditor = canDo(currentRole, "editor");
+  body.innerHTML = rows.map((v, i) => `
+    <tr class="${v.is_hidden ? "hidden-row" : ""}">
+      <td>
+        <div class="v-title" title="${escHtml(v.title || "")}">${escHtml(v.title || `Video #${v.source_video_id}`)}</div>
+        <div class="v-meta">#${escHtml(v.source_video_id)} · ${escHtml(v.source_platform || "—")}
+          ${v.source_url ? ` · <a href="${escHtml(dlSafeUrl(v.source_url))}" target="_blank" rel="noopener">link gốc ↗</a>` : ""}
+          ${v.is_processed ? ` · <span class="chip chip-ok">đã xử lý watermark</span>` : ""}
+          ${v.is_hidden ? ` · <span class="chip">đã ẩn</span>` : ""}</div>
+      </td>
+      <td class="num col-num">⏱ ${dlFmtDuration(v.duration_s)}</td>
+      <td class="num col-num">${v.width && v.height ? `${v.width}×${v.height}` : "—"}</td>
+      <td class="num col-num">${dlFmtBytes(v.size_bytes)}</td>
+      <td class="num col-num">${dlFmtDate(v.finished_at)}</td>
+      <td><div class="actions">
+        <button class="btn btn-primary btn-sm" onclick="copyLink(${i})">📋 Link tải</button>
+        ${v.drive_view_link ? `<a class="btn btn-ghost btn-sm" href="${escHtml(dlSafeUrl(v.drive_view_link))}" target="_blank" rel="noopener">Xem trên Drive ↗</a>` : ""}
+        ${isEditor ? `<button class="btn btn-ghost btn-sm" onclick="toggleHidden(${i})">${v.is_hidden ? "Hiện lại" : "Ẩn"}</button>` : ""}
+      </div></td>
+    </tr>`).join("");
+}
+
+async function copyLink(i) {
+  const v = rows[i];
+  if (!v) return;
+  const ok = await dlCopy(v.download_url);
+  toast(ok ? "Đã sao chép link tải video" : "Không sao chép được, hãy mở Xem trên Drive", ok ? "success" : "error");
+}
+
+async function toggleHidden(i) {
+  const v = rows[i];
+  if (!v) return;
+  const { error } = await getSB().from("downloader_videos")
+    .update({ is_hidden: !v.is_hidden, updated_at: new Date().toISOString() }).eq("id", v.id);
+  if (error) { toast("Không lưu được: " + error.message, "error"); return; }
+  toast(v.is_hidden ? "Đã hiện lại video" : "Đã ẩn video khỏi danh sách chọn");
+  loadVideos();
+}
+
+initAuthGuard({ page: "downloader", onReady: ({ role }) => {
+  currentRole = role;
+  document.getElementById("searchInput").addEventListener("input", () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(loadVideos, 250);
+  });
+  document.getElementById("showHidden").addEventListener("change", loadVideos);
+  loadVideos();
+}});
+</script>
+</body>
+</html>
