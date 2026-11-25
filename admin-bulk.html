@@ -153,6 +153,7 @@
     .toast.show { transform:translateY(0); opacity:1; }
     .toast.success { border-left:3px solid var(--success); }
     .toast.error   { border-left:3px solid var(--danger); }
+    .toast.warn    { border-left:3px solid var(--warn); }
 
     /* ── nav sidebar ── */
     .nav-sb { width:196px; flex-shrink:0; background:#0d0d0d; border-right:1px solid #1e1e1e; display:flex; flex-direction:column; overflow:hidden; }
@@ -300,8 +301,10 @@
           <div class="result-row">
             <div class="result-item"><div class="result-num" id="res-ok" style="color:var(--success)">0</div><div>Thêm mới</div></div>
             <div class="result-item"><div class="result-num" id="res-dup" style="color:#60a5fa">0</div><div>Đã cập nhật</div></div>
+            <div class="result-item"><div class="result-num" id="res-tok" style="color:var(--warn)">0</div><div>Token</div></div>
             <div class="result-item"><div class="result-num" id="res-err" style="color:var(--danger)">0</div><div>Lỗi</div></div>
           </div>
+          <div id="res-errors" style="margin-top:10px;font-size:12px;color:var(--danger);line-height:1.6;max-height:220px;overflow-y:auto"></div>
         </div>
       </div>
     </div>
@@ -438,7 +441,7 @@ let editingTplId = null, tplFilterVal = "";
 initAuthGuard({ page: "bulk", onReady: ({ user }) => {
   currentUser = user;
   loadTemplates();
-  loadExistingPages();
+  loadExistingPages().catch(() => {}); // lỗi sẽ được báo khi chọn file (withExistingPages)
 }});
 
 // ── Tabs ─────────────────────────────────────────────────────
@@ -450,20 +453,42 @@ function switchTab(name, btn) {
 }
 
 // ── Existing pages (để khớp update / insert) ──────────────────
-let existingByUid = new Map();   // `platform::page_uid` → {id,page_name}
-let existingByName = new Map();  // `platform::tên đã chuẩn hoá` → {id,page_name}
-let existingById = new Map();     // id → {id,platform,page_uid,page_name}
-function normName(s) { return (s||"").trim().toLowerCase(); }
-async function loadExistingPages() {
-  const { data } = await sb.from("pages").select("id,platform,page_uid,page_name");
-  existingByUid.clear();
-  existingByName.clear();
-  existingById.clear();
-  (data??[]).forEach(p => {
-    if (p.page_uid) existingByUid.set(`${p.platform}::${p.page_uid}`, p);
-    existingByName.set(`${p.platform}::${normName(p.page_name)}`, p);
-    existingById.set(p.id, p);
-  });
+let existingByUid = new Map();   // `platform::page_uid` → [page, …] (2 người tạo có thể cùng 1 UID)
+let existingByName = new Map();  // `platform::tên đã chuẩn hoá` → [page, …] (tên có thể trùng)
+let existingById = new Map();    // id → page
+let existingReady = null;        // Promise tải danh sách page hiện có; parseCSV phải chờ xong
+// NFC: cùng một chữ có dấu có thể được lưu bằng 2 kiểu mã Unicode (Excel/macOS hay ra NFD),
+// không chuẩn hoá thì "Sóc Mê Sao" trong file không khớp "Sóc Mê Sao" trong hệ thống.
+function normName(s) { return (s||"").normalize("NFC").trim().toLowerCase(); }
+function loadExistingPages() {
+  existingReady = (async () => {
+    const all = [];
+    for (let from = 0; ; from += 1000) { // Supabase trả tối đa 1000 dòng mỗi lần
+      const { data, error } = await sb.from("pages").select("id,platform,page_uid,page_name").order("id").range(from, from + 999);
+      if (error) throw error;
+      all.push(...data);
+      if (data.length < 1000) break;
+    }
+    existingByUid.clear();
+    existingByName.clear();
+    existingById.clear();
+    const add = (map, k, p) => map.set(k, [...(map.get(k) ?? []), p]);
+    all.forEach(p => {
+      if (p.page_uid) add(existingByUid, `${p.platform}::${p.page_uid}`, p);
+      add(existingByName, `${p.platform}::${normName(p.page_name)}`, p);
+      existingById.set(p.id, p);
+    });
+  })();
+  return existingReady;
+}
+// Không khớp được với page đang có mà vẫn import thì mọi dòng thành "thêm mới" → page trùng.
+async function withExistingPages(fn) {
+  try { await (existingReady ?? loadExistingPages()); }
+  catch (e) {
+    existingReady = null;
+    return toast(`Không tải được danh sách page hiện có, thử lại sau: ${e.message}`, "error");
+  }
+  fn();
 }
 
 // ── Sample CSV ───────────────────────────────────────────────
@@ -504,240 +529,355 @@ function handleFileSelect(e) { if (e.target.files[0]) processFile(e.target.files
 function processFile(file) {
   if (!file.name.match(/\.(csv|txt)$/i)) return toast("Chỉ hỗ trợ file CSV","error");
   const reader = new FileReader();
-  reader.onload = e => parseCSV(e.target.result);
+  reader.onload = e => {
+    // Excel "CSV (Comma delimited)" lưu theo bảng mã Windows chứ không phải UTF-8: tiếng Việt
+    // đọc bằng UTF-8 sẽ vỡ thành ký tự �, nên đọc lại theo windows-1258 (bảng mã tiếng Việt).
+    if (e.target.result.includes("�")) {
+      const retry = new FileReader();
+      retry.onload = e2 => {
+        toast('File không phải UTF-8, đã đọc lại theo bảng mã Windows. Lần sau nên lưu dạng "CSV UTF-8"', "warn");
+        withExistingPages(() => parseCSV(e2.target.result));
+      };
+      retry.readAsText(file, "windows-1258");
+      return;
+    }
+    withExistingPages(() => parseCSV(e.target.result));
+  };
   reader.readAsText(file, "UTF-8");
 }
 
+// Trường của page lấy từ file. Khi cập nhật, ô trống = giữ nguyên giá trị đang có (không xoá);
+// muốn xoá một trường thì sửa trực tiếp ở Page List.
+const PAGE_FIELDS = ["page_name","page_uid","page_group","logo_link","api_url","tg_type","tg_link","tg_default_link","pic_email"];
+let pageGroups = []; // mỗi phần tử = 1 page sẽ ghi (gộp các dòng cùng page), xem groupRows()
+
+// TRUE/FALSE kiểu Excel và các cách viết thường gặp. null = ô trống, undefined = không hiểu.
+function parseBool(v) {
+  const s = (v ?? "").normalize("NFC").trim().toLowerCase();
+  if (!s) return null;
+  if (["true","1","yes","y","có","co","active","on","x"].includes(s)) return true;
+  if (["false","0","no","n","không","khong","inactive","off"].includes(s)) return false;
+  return undefined;
+}
+
+// Tách cả file thành các bản ghi: ô trong ngoặc kép được chứa dấu phân cách, "" và xuống dòng
+// (Alt+Enter trong Excel). `line` = số dòng thật trong file, để báo lỗi đúng chỗ.
+function parseCSVRecords(text, delim) {
+  const recs = [];
+  let row = [], cur = "", inQ = false, line = 1, start = 1, quoteLine = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"') { if (text[i+1] === '"') { cur += '"'; i++; } else inQ = false; }
+      else { if (c === "\n") line++; cur += c; }
+      continue;
+    }
+    // Chỉ dấu " ở đầu ô mới mở ngoặc; dấu " lẻ giữa ô (vd: 5" inch) là ký tự thường
+    if (c === '"' && cur === "") { inQ = true; quoteLine = line; continue; }
+    if (c === delim) { row.push(cur); cur = ""; continue; }
+    if (c === "\n") { row.push(cur); recs.push({ cells: row, line: start }); row = []; cur = ""; start = ++line; continue; }
+    cur += c;
+  }
+  if (cur !== "" || row.length) { row.push(cur); recs.push({ cells: row, line: start }); }
+  return { recs: recs.filter(r => r.cells.some(c => c.trim())), unclosedQuoteLine: inQ ? quoteLine : 0 };
+}
+
 function parseCSV(text) {
-  const lines = text.replace(/\r/g,"").split("\n").filter(l=>l.trim());
-  if (lines.length < 2) return toast("File không có dữ liệu","error");
-  const headers = lines[0].split(",").map(h=>h.trim().toLowerCase().replace(/^"|"$/g,""));
+  text = text.replace(/^﻿/, "").replace(/\r/g, ""); // BOM của Excel "CSV UTF-8" làm hỏng tên cột đầu
+  // Excel bản tiếng Việt thường lưu CSV ngăn cách bằng dấu chấm phẩy
+  const head = text.slice(0, (text.indexOf("\n") + 1 || text.length + 1) - 1);
+  const delim = head.split(";").length > head.split(",").length ? ";" : ",";
+  const { recs, unclosedQuoteLine } = parseCSVRecords(text, delim);
+  // Ngoặc kép không đóng sẽ nuốt mọi dòng phía sau: dừng hẳn thay vì import thiếu
+  if (unclosedQuoteLine) return toast(`Dòng ${unclosedQuoteLine}: dấu ngoặc kép (") chưa được đóng, sửa file rồi tải lại`, "error");
+  if (recs.length < 2) return toast("File không có dữ liệu","error");
+  const headers = recs[0].cells.map(h=>h.trim().toLowerCase());
   const required = ["page_name","platform"];
   const missing  = required.filter(r=>!headers.includes(r));
   if (missing.length) return toast(`Thiếu cột: ${missing.join(", ")}`, "error");
   parsedRows = [];
-  for (let i=1; i<lines.length; i++) {
-    const cols = splitCSVLine(lines[i]);
+  for (const rec of recs.slice(1)) {
     const obj  = {};
-    headers.forEach((h,j) => obj[h] = (cols[j]??"").trim().replace(/^"|"$/g,""));
-    const tokenVal = (obj.token_value ?? "").trim();
+    headers.forEach((h,j) => obj[h] = (rec.cells[j] ?? "").normalize("NFC").trim());
     const row = {
-      page_id:     (obj.page_id ?? obj.id ?? "").trim(),
-      page_name:   obj.page_name  ?? "",
-      page_uid:    obj.page_uid   ?? "",
-      platform:    (obj.platform  ?? "").toLowerCase(),
-      page_group:  obj.page_group ?? "",
-      logo_link:       obj.logo_link      ?? obj.page_link ?? "",
-      api_url:         obj.api_token      ?? obj.api_url   ?? "",
-      is_active:       (obj.is_active     ?? "true").toLowerCase() !== "false",
-      tg_type:         obj.tg_type        ? obj.tg_type.trim().toLowerCase() : "",
-      tg_link:         obj.tg_link        ?? "",
+      page_id:         obj.page_id ?? obj.id ?? "",
+      page_name:       obj.page_name ?? "",
+      page_uid:        obj.page_uid ?? "",
+      platform:        (obj.platform ?? "").toLowerCase(),
+      page_group:      obj.page_group ?? "",
+      logo_link:       obj.logo_link ?? obj.page_link ?? "",
+      api_url:         obj.api_token ?? obj.api_url ?? "",
+      is_active:       parseBool(obj.is_active),
+      tg_type:         (obj.tg_type ?? "").toLowerCase(),
+      tg_link:         obj.tg_link ?? "",
       tg_default_link: obj.tg_default_link ?? "",
-      pic_email:       (obj.pic_email     ?? "").trim(),
-      token_type:      (obj.token_type    ?? "").trim(),
-      token_name:      (obj.token_name    ?? "").trim(),
-      token_value:     tokenVal,
-      _line: i+1,
+      pic_email:       obj.pic_email ?? "",
+      token_type:      obj.token_type ?? "",
+      token_name:      obj.token_name ?? "",
+      token_value:     obj.token_value ?? "",
+      _line: rec.line,
     };
     row._errors = [];
     row._warns  = [];
     if (!row.page_name) row._errors.push("Thiếu tên");
     if (!VALID_PLATFORMS.includes(row.platform)) row._errors.push(`Platform "${row.platform}" không hợp lệ`);
+    if (row.is_active === undefined) row._errors.push(`is_active "${obj.is_active}" không hợp lệ (dùng TRUE/FALSE)`);
+    // Excel tự đổi UID dài thành số khoa học (1.19834E+15) và làm mất các chữ số cuối
+    if (/^[+-]?\d+(\.\d+)?e[+-]?\d+$/i.test(row.page_uid) || /^\d+\.\d+$/.test(row.page_uid))
+      row._errors.push(`UID "${row.page_uid}" bị Excel đổi thành dạng số: xuất lại CSV từ hệ thống, không sửa cột UID bằng Excel`);
     // Khớp page đã có: ưu tiên tuyệt đối theo page_id (chính xác 1-1, lấy từ Export CSV),
     // nếu không có page_id mới fallback theo UID, rồi theo tên (UID không bắt buộc).
     if (row.page_id) {
       const byId = existingById.get(row.page_id);
       if (!byId) row._errors.push(`Page ID "${row.page_id}" không tồn tại`);
+      else if (VALID_PLATFORMS.includes(row.platform) && byId.platform !== row.platform)
+        row._errors.push(`Platform "${row.platform}" khác page hiện có (${byId.platform})`);
+      // Excel làm tròn UID 16 chữ số (…0102 → …0100): không để nó ghi đè UID thật
+      else if (row.page_uid && byId.page_uid && row.page_uid !== byId.page_uid)
+        row._errors.push(`UID "${row.page_uid}" khác UID đang có (${byId.page_uid}): có thể Excel đã làm tròn số. Muốn đổi UID thì sửa ở Page List`);
       row._existingId = byId?.id || null;
     } else {
-      const matched = (row.page_uid && existingByUid.get(`${row.platform}::${row.page_uid}`))
-        || existingByName.get(`${row.platform}::${normName(row.page_name)}`)
-        || null;
-      row._existingId = matched?.id || null;
+      const byUid = row.page_uid ? (existingByUid.get(`${row.platform}::${row.page_uid}`) ?? []) : [];
+      let match = null;
+      if (byUid.length > 1)
+        row._errors.push(`UID này có ở ${byUid.length} page (do nhiều người tạo): thêm cột page_id (xuất CSV từ Page List) để chọn đúng page`);
+      else if (byUid.length === 1) match = byUid[0];
+      else {
+        // Theo tên chỉ khi file không có UID, hoặc page trùng tên chưa có UID: UID khác = page khác,
+        // không được ghi đè UID của page đang có.
+        const sameName = existingByName.get(`${row.platform}::${normName(row.page_name)}`) ?? [];
+        const cands = sameName.filter(p => !row.page_uid || !p.page_uid);
+        if (cands.length > 1)
+          row._errors.push(`Có ${cands.length} page cùng tên này: cần page_uid hoặc page_id để biết cập nhật page nào`);
+        else if (cands.length === 1) match = cands[0];
+        else if (sameName.length) row._warns.push("Trùng tên với page đang có nhưng khác UID: sẽ thêm page mới");
+      }
+      row._existingId = match?.id || null;
     }
     row._action = row._existingId ? "update" : "insert";
     if (row.logo_link && !row.logo_link.startsWith("http")) row._warns.push("Logo link không có http");
-    if (row.token_value && !row.token_type) row._warns.push("Có token_value nhưng thiếu token_type");
+    if (row.token_value && !row.token_type) row._warns.push("Có token_value nhưng thiếu token_type: token bị bỏ qua");
     parsedRows.push(row);
   }
+  pageGroups = groupRows(parsedRows.filter(r => !r._errors.length));
   renderPreview();
 }
 
-function splitCSVLine(line) {
-  const res = []; let cur = "", inQ = false;
-  for (let i=0; i<line.length; i++) {
-    if (line[i]==='"') { inQ=!inQ; continue; }
-    if (line[i]==="," && !inQ) { res.push(cur); cur=""; continue; }
-    cur += line[i];
+// Nhiều dòng cùng 1 page (mỗi dòng 1 token, hoặc dòng bị lặp) gộp thành 1 lần ghi: trước đây
+// 2 dòng cùng page làm hỏng cả lô cập nhật và toàn bộ token. Ô có giá trị ở dòng sau thắng,
+// token gộp theo token_type.
+function groupRows(rows) {
+  const groups = new Map();
+  rows.forEach(r => {
+    const k = r._existingId ? `id::${r._existingId}` : `new::${rowKey(r)}`;
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(r);
+  });
+  // Page mới: dòng không ghi UID (thường là dòng token phụ) thuộc về page mới cùng tên có UID,
+  // nếu chỉ có đúng 1 page như vậy; không thì thành 2 page.
+  for (const [k, rs] of groups) {
+    if (!k.startsWith("new::") || rs[0].page_uid) continue;
+    const owners = [...groups].filter(([k2, rs2]) => k2.startsWith("new::") && rs2[0].page_uid
+      && rs2[0].platform === rs[0].platform && normName(rs2[0].page_name) === normName(rs[0].page_name));
+    if (owners.length > 1) {
+      // Không biết dòng không UID thuộc page nào: báo lỗi thay vì tạo thêm page thứ 3
+      rs.forEach(r => r._errors.push(`Có ${owners.length} page mới cùng tên với UID khác nhau: ghi UID để biết dòng này thuộc page nào`));
+      groups.delete(k);
+      continue;
+    }
+    if (owners.length !== 1) continue;
+    owners[0][1].push(...rs);
+    owners[0][1].sort((a, b) => a._line - b._line);
+    groups.delete(k);
   }
-  res.push(cur);
-  return res;
+  return [...groups.values()].map(rs => {
+    const first = rs[0];
+    const page = { _existingId: first._existingId, platform: first.platform, is_active: null };
+    const tokens = new Map();
+    rs.forEach(r => {
+      if (r !== first) r._mergedInto = first._line;
+      PAGE_FIELDS.forEach(f => {
+        if (!r[f]) return;
+        if (page[f] && page[f] !== r[f]) r._warns.push(`Khác dòng trước ở cột ${f === "api_url" ? "api_token" : f}: dùng giá trị dòng này`);
+        page[f] = r[f];
+      });
+      if (r.is_active !== null) page.is_active = r.is_active;
+      if (r.token_value && r.token_type) tokens.set(r.token_type, r);
+    });
+    return { page, tokens: [...tokens.values()], lines: rs.map(r => r._line) };
+  });
 }
 
 function renderPreview() {
   const valid  = parsedRows.filter(r => !r._errors.length);
-  const upd    = valid.filter(r => r._action === "update").length;
-  const ins    = valid.filter(r => r._action === "insert").length;
+  const upd    = pageGroups.filter(g => g.page._existingId).length;
+  const ins    = pageGroups.length - upd;
+  const toks   = pageGroups.reduce((n, g) => n + g.tokens.length, 0);
+  const warns  = valid.filter(r => r._warns.length).length;
+  const errs   = parsedRows.length - valid.length;
   document.getElementById("previewWrap").style.display = "block";
   document.getElementById("uploadZone").style.display  = "none";
   document.getElementById("previewTitle").textContent  = `Preview — ${parsedRows.length} dòng`;
-  document.getElementById("previewCount").textContent  =
-    `✅ ${valid.length} hợp lệ (🔄 ${upd} cập nhật · 🆕 ${ins} mới) · ⚠️ ${parsedRows.filter(r=>r._warns.length&&!r._errors.length).length} cảnh báo · ❌ ${parsedRows.filter(r=>r._errors.length).length} lỗi`;
-  document.getElementById("importCount").textContent = valid.length;
+  document.getElementById("previewCount").innerHTML    =
+    `✅ ${valid.length} dòng hợp lệ → ${pageGroups.length} page (🔄 ${upd} cập nhật · 🆕 ${ins} mới) · 🔑 ${toks} token · ⚠️ ${warns} cảnh báo · ❌ ${errs} lỗi` +
+    `<div style="margin-top:4px;color:var(--muted)">Ô để trống = giữ nguyên dữ liệu đang có. Dòng lỗi sẽ bị bỏ qua.</div>`;
+  document.getElementById("importCount").textContent = pageGroups.length;
+  document.getElementById("btnImport").disabled = !pageGroups.length;
   const tbody = document.getElementById("previewBody");
-  tbody.innerHTML = parsedRows.map((r,i) => {
+  tbody.innerHTML = parsedRows.map(r => {
     const isUpd = r._action === "update";
-    const cls = r._errors.length ? "row-err" : isUpd ? "row-dup" : r._warns.length ? "row-warn" : "row-ok";
-    const badgeCls = r._errors.length ? "err" : isUpd ? "dup" : r._warns.length ? "warn" : "ok";
-    const badgeTxt = r._errors.length ? "❌ Lỗi" : isUpd ? "🔄 Cập nhật" : r._warns.length ? "⚠️ Mới" : "🆕 Mới";
+    const cls = r._errors.length ? "row-err" : isUpd || r._mergedInto ? "row-dup" : r._warns.length ? "row-warn" : "row-ok";
+    const badgeCls = r._errors.length ? "err" : isUpd || r._mergedInto ? "dup" : r._warns.length ? "warn" : "ok";
+    const badgeTxt = r._errors.length ? "❌ Lỗi" : r._mergedInto ? `🔗 Gộp dòng ${r._mergedInto}` : isUpd ? "🔄 Cập nhật" : r._warns.length ? "⚠️ Mới" : "🆕 Mới";
     const msgs = [...r._errors, ...r._warns].join("; ");
     return `<tr class="${cls}">
       <td style="color:var(--muted);font-size:12px">${r._line}</td>
-      <td><span class="sbadge ${badgeCls}" title="${esc(msgs)}">${badgeTxt}</span></td>
+      <td><span class="sbadge ${badgeCls}" title="${esc(msgs)}">${badgeTxt}</span>${msgs ? `<div style="font-size:11px;color:var(--muted);margin-top:3px;max-width:260px;white-space:normal">${esc(msgs)}</div>` : ""}</td>
       <td style="font-weight:500">${esc(r.page_name)||'<span style="color:var(--danger)">—</span>'}</td>
       <td>${VALID_PLATFORMS.includes(r.platform)?`<span class="pbadge ${r.platform}">${cap(r.platform)}</span>`:`<span style="color:var(--danger)">${esc(r.platform)||"—"}</span>`}</td>
       <td style="font-family:monospace;font-size:12px;color:var(--muted)">${esc(r.page_uid)||"—"}</td>
       <td>${r.page_group?`<span style="font-size:12px">${esc(r.page_group)}</span>`:"—"}</td>
       <td style="font-size:12px;color:var(--muted)">${r.logo_link?`<a href="${esc(r.logo_link)}" target="_blank" style="color:#60a5fa;text-decoration:none">🖼️</a>`:"—"}</td>
-      <td style="font-family:monospace;font-size:11px;color:#60a5fa;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.api_url)}">${r.api_url?r.api_url.substring(0,18)+(r.api_url.length>18?"…":""):"—"}</td>
+      <td style="font-family:monospace;font-size:11px;color:#60a5fa;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.api_url)}">${r.api_url?esc(r.api_url.substring(0,18))+(r.api_url.length>18?"…":""):"—"}</td>
       <td style="font-size:11px;color:var(--muted)">${esc(r.pic_email)||"—"}</td>
       <td style="font-size:12px">${r.token_value?`<span style="color:var(--warn)" title="${esc(r.token_type+': '+r.token_name)}">🔑 ${esc(r.token_type||"?")}</span>`:"—"}</td>
-      <td><span style="font-size:12px;color:${r.is_active?'var(--success)':'var(--muted)'}">${r.is_active?"●":"○"}</span></td>
+      <td><span style="font-size:12px;color:${r.is_active===false?'var(--muted)':'var(--success)'}">${r.is_active===null?"—":r.is_active?"●":"○"}</span></td>
     </tr>`;
   }).join("");
 }
 
 function resetUpload() {
   parsedRows = [];
+  pageGroups = [];
   document.getElementById("uploadZone").style.display   = "block";
   document.getElementById("previewWrap").style.display  = "none";
   document.getElementById("progressWrap").style.display = "none";
   document.getElementById("resultSummary").style.display = "none";
   document.getElementById("csvInput").value = "";
+  document.getElementById("btnImport").disabled = false;
 }
 
-// Key dùng để map page-id cho việc gắn token, khớp đúng logic match ở parseCSV
+// Key gộp các dòng của cùng 1 page mới (chưa có trong hệ thống), khớp đúng logic match ở parseCSV
 function rowKey(r) { return r.page_uid ? `${r.platform}::uid::${r.page_uid}` : `${r.platform}::name::${normName(r.page_name)}`; }
 
+// Chạy fn cho từng item, tối đa `limit` request song song (nhanh mà không dồn Supabase)
+async function runPool(items, limit, fn) {
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) await fn(items[next++]);
+  }));
+}
+
+// Chỉ gửi trường có giá trị: ô trống không xoá dữ liệu đang có, và không đổi chủ sở hữu
+// (user_id) của page sang người bấm import như trước.
+function updatePayload(p) {
+  const out = {};
+  PAGE_FIELDS.forEach(f => {
+    if (!p[f]) return;
+    if (f.startsWith("tg_") && p.platform !== "telegram") return;
+    out[f] = p[f];
+  });
+  if (p.is_active !== null) out.is_active = p.is_active;
+  return out;
+}
+
 async function importPages() {
-  const valid = parsedRows.filter(r => !r._errors.length);
-  if (!valid.length) return toast("Không có dữ liệu hợp lệ để import","error");
-  const toUpdate = valid.filter(r => r._action === "update");
-  const toInsert = valid.filter(r => r._action === "insert");
+  if (!pageGroups.length) return toast("Không có dữ liệu hợp lệ để import","error");
   const btn = document.getElementById("btnImport");
   btn.disabled = true;
   document.getElementById("progressWrap").style.display = "block";
   document.getElementById("resultSummary").style.display = "none";
-  let ins=0, upd=0, err=0, tokOk=0;
-  const BATCH = 20;
-  const pageIdMap = {}; // rowKey(r) → page id, dùng để gắn token ngay sau đó
-  const total = toUpdate.length + toInsert.length;
-  let done = 0;
+  let ins = 0, upd = 0, tokOk = 0, done = 0;
+  const errs = [];
+  const groups = pageGroups;
+  // Không cho bấm import lần 2 với cùng file: các page vừa thêm mới sẽ bị thêm trùng
+  pageGroups = [];
+  const setProgress = (label, n, of) => {
+    document.getElementById("progressBar").style.width  = Math.round(n/of*100)+"%";
+    document.getElementById("progressText").textContent = `${label} ${n}/${of}`;
+  };
 
-  // ── Cập nhật page đã có (upsert theo id = conflict target mặc định) ──
-  for (let i=0; i<toUpdate.length; i+=BATCH) {
-    const chunk = toUpdate.slice(i, i+BATCH);
-    const batch = chunk.map(r => ({
-      id:         r._existingId,
-      user_id:    currentUser.id,
-      page_name:  r.page_name,
-      page_uid:   r.page_uid || null,
-      platform:   r.platform,
-      page_group:      r.page_group      || null,
-      logo_link:       r.logo_link       || null,
-      api_url:         r.api_url         || null,
-      is_active:       r.is_active,
-      tg_type:         r.platform === "telegram" && r.tg_type ? r.tg_type : null,
-      tg_link:         r.platform === "telegram" && r.tg_link ? r.tg_link : null,
-      tg_default_link: r.platform === "telegram" && r.tg_default_link ? r.tg_default_link : null,
-      pic_email:       r.pic_email || null,
-    }));
-    const { error } = await sb.from("pages").upsert(batch, { onConflict: "id" });
-    if (error) err += batch.length;
-    else { upd += batch.length; chunk.forEach(r => { pageIdMap[rowKey(r)] = r._existingId; }); }
-    done += chunk.length;
-    document.getElementById("progressBar").style.width  = Math.round(done/total*100)+"%";
-    document.getElementById("progressText").textContent = `Đang cập nhật pages... ${done}/${total}`;
-  }
-
-  // ── Thêm page mới ──
-  for (let i=0; i<toInsert.length; i+=BATCH) {
-    const chunk = toInsert.slice(i, i+BATCH);
-    const batch = chunk.map(r => ({
-      user_id:    currentUser.id,
-      page_name:  r.page_name,
-      page_uid:   r.page_uid || null,
-      platform:   r.platform,
-      page_group:      r.page_group      || null,
-      logo_link:       r.logo_link       || null,
-      api_url:         r.api_url         || null,
-      is_active:       r.is_active,
-      tg_type:         r.platform === "telegram" && r.tg_type ? r.tg_type : null,
-      tg_link:         r.platform === "telegram" && r.tg_link ? r.tg_link : null,
-      tg_default_link: r.platform === "telegram" && r.tg_default_link ? r.tg_default_link : null,
-      pic_email:       r.pic_email || null,
-    }));
-    const { error, data } = await sb.from("pages").insert(batch).select("id,platform,page_uid,page_name");
-    if (error) err += batch.length;
-    else {
-      ins += data?.length ?? batch.length;
-      (data??[]).forEach(p => { pageIdMap[p.page_uid ? `${p.platform}::uid::${p.page_uid}` : `${p.platform}::name::${normName(p.page_name)}`] = p.id; });
-    }
-    done += chunk.length;
-    document.getElementById("progressBar").style.width  = Math.round(done/total*100)+"%";
-    document.getElementById("progressText").textContent = `Đang thêm pages mới... ${done}/${total}`;
-  }
-
-  // Cập nhật / thêm tokens cho các dòng có token_value
-  const tokenRows = valid.filter(r => r.token_value && r.token_type);
-  if (tokenRows.length) {
-    document.getElementById("progressText").textContent = `Đang lưu ${tokenRows.length} tokens...`;
-
-    // Tra token đã có theo (page_id, token_type) để UPDATE đúng token đó thay vì tạo trùng
-    const pidsInvolved = [...new Set(tokenRows.map(r => pageIdMap[rowKey(r)]).filter(Boolean))];
-    const existingTokenMap = new Map(); // `page_id::token_type` -> token id
-    if (pidsInvolved.length) {
-      const { data: existTok } = await sb.from("page_tokens").select("id,page_id,token_type").in("page_id", pidsInvolved);
-      (existTok??[]).forEach(t => existingTokenMap.set(`${t.page_id}::${t.token_type}`, t.id));
-    }
-
-    const tokenUpdates = [], tokenInserts = [];
-    tokenRows.forEach(r => {
-      const pid = pageIdMap[rowKey(r)];
-      if (!pid) return;
-      const existingId = existingTokenMap.get(`${pid}::${r.token_type}`);
-      const base = {
-        user_id:     currentUser.id,
-        page_id:     pid,
-        token_type:  r.token_type,
-        token_name:  r.token_name || r.token_type,
-        token_value: r.token_value,
-        is_active:   true,
-      };
-      if (existingId) tokenUpdates.push({ id: existingId, ...base });
-      else tokenInserts.push(base);
+  try {
+    // ── Pages: mỗi page 1 request; select("id") để biết RLS có chặn không (chặn = 0 dòng, không báo lỗi) ──
+    await runPool(groups, 5, async g => {
+      const p = g.page;
+      const where = `Dòng ${g.lines.join(", ")} (${p.page_name || "?"})`;
+      if (p._existingId) {
+        const { data, error } = await sb.from("pages").update(updatePayload(p)).eq("id", p._existingId).select("id");
+        if (error) errs.push(`${where}: ${error.message}`);
+        else if (!data?.length) errs.push(`${where}: không có quyền sửa page này (cần quyền editor)`);
+        else { upd++; g.pageId = p._existingId; }
+      } else {
+        const { data, error } = await sb.from("pages").insert({
+          user_id:         currentUser.id,
+          page_name:       p.page_name,
+          page_uid:        p.page_uid || null,
+          platform:        p.platform,
+          page_group:      p.page_group || null,
+          logo_link:       p.logo_link || null,
+          api_url:         p.api_url || null,
+          is_active:       p.is_active ?? true,
+          tg_type:         p.platform === "telegram" ? (p.tg_type || null) : null,
+          tg_link:         p.platform === "telegram" ? (p.tg_link || null) : null,
+          tg_default_link: p.platform === "telegram" ? (p.tg_default_link || null) : null,
+          pic_email:       p.pic_email || null,
+        }).select("id");
+        if (error) errs.push(`${where}: ${error.message}`);
+        else { ins++; g.pageId = data[0].id; }
+      }
+      setProgress("Đang lưu pages...", ++done, groups.length);
     });
 
-    if (tokenUpdates.length) {
-      const { data: tu } = await sb.from("page_tokens").upsert(tokenUpdates).select("id");
-      tokOk += tu?.length ?? 0;
+    // ── Tokens: cập nhật token đã có theo (page, token_type), chưa có thì thêm mới ──
+    groups.filter(g => !g.pageId && g.tokens.length)
+      .forEach(g => errs.push(`Dòng ${g.lines.join(", ")}: bỏ qua ${g.tokens.length} token vì page chưa lưu được`));
+    const jobs = groups.filter(g => g.pageId).flatMap(g => g.tokens.map(t => ({ g, t })));
+    if (jobs.length) {
+      const pids = [...new Set(jobs.map(j => j.g.pageId))];
+      const existingTok = new Map(); // `page_id::token_type` → token id
+      const unreadable = new Set();  // page không đọc được token hiện có
+      for (let i = 0; i < pids.length; i += 100) {
+        const chunk = pids.slice(i, i+100);
+        const { data, error } = await sb.from("page_tokens").select("id,page_id,token_type").in("page_id", chunk);
+        if (error) { chunk.forEach(id => unreadable.add(id)); errs.push(`Không đọc được token hiện có: ${error.message}`); }
+        (data??[]).forEach(t => existingTok.set(`${t.page_id}::${t.token_type}`, t.id));
+      }
+      let n = 0;
+      await runPool(jobs, 5, async ({ g, t }) => {
+        const where = `Dòng ${t._line}: token ${t.token_type}`;
+        // Không biết token đã có hay chưa thì thêm mới sẽ tạo token trùng: bỏ qua
+        if (unreadable.has(g.pageId)) errs.push(`${where}: bỏ qua vì không đọc được token hiện có`);
+        else {
+          const id = existingTok.get(`${g.pageId}::${t.token_type}`);
+          // Cập nhật: chỉ thay giá trị (và tên nếu file có); không bật lại token đang bị tắt
+          const { data, error } = id
+            ? await sb.from("page_tokens").update({ token_value: t.token_value, ...(t.token_name && { token_name: t.token_name }) }).eq("id", id).select("id")
+            : await sb.from("page_tokens").insert({ user_id: currentUser.id, page_id: g.pageId, token_type: t.token_type,
+                token_name: t.token_name || t.token_type, token_value: t.token_value, is_active: true }).select("id");
+          if (error) errs.push(`${where}: ${error.message}`);
+          else if (!data?.length) errs.push(`${where}: không có quyền lưu token (cần quyền editor)`);
+          else tokOk++;
+        }
+        setProgress("Đang lưu tokens...", ++n, jobs.length);
+      });
     }
-    if (tokenInserts.length) {
-      const { data: td } = await sb.from("page_tokens").insert(tokenInserts).select("id");
-      tokOk += td?.length ?? 0;
-    }
+  } catch (e) {
+    errs.push(`Import bị dừng giữa chừng: ${e.message}. Kiểm tra lại Page List trước khi import lại file này.`);
   }
 
   document.getElementById("progressBar").style.width = "100%";
   document.getElementById("progressText").textContent = "Hoàn thành!";
   document.getElementById("res-ok").textContent  = ins;
   document.getElementById("res-dup").textContent = upd;
-  document.getElementById("res-err").textContent = err;
+  document.getElementById("res-tok").textContent = tokOk;
+  document.getElementById("res-err").textContent = errs.length;
+  document.getElementById("res-errors").innerHTML = errs.map(e => `<div>• ${esc(e)}</div>`).join("");
   document.getElementById("resultSummary").style.display = "block";
-  btn.disabled = false;
-  await loadExistingPages();
-  const tokMsg = tokOk > 0 ? ` · ${tokOk} tokens` : "";
-  toast(`Import xong: ${ins} mới, ${upd} đã cập nhật${tokMsg}${err?`, ${err} lỗi`:""}`, err && !ins && !upd ?"error":"success");
+  document.getElementById("importCount").textContent = 0;
+  try { await loadExistingPages(); } catch { existingReady = null; }
+  const tokMsg = tokOk > 0 ? ` · ${tokOk} token` : "";
+  toast(`Import xong: ${ins} mới, ${upd} đã cập nhật${tokMsg}${errs.length ? `, ${errs.length} lỗi` : ""}`,
+    errs.length ? (ins || upd ? "warn" : "error") : "success");
 }
 
 // ── Templates ────────────────────────────────────────────────
@@ -914,7 +1054,7 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape")closeTplModal();});
 let toastTimer;
 function toast(msg,type="success"){
   const el=document.getElementById("toast");
-  el.textContent=(type==="success"?"✓  ":"✕  ")+msg;
+  el.textContent=(type==="success"?"✓  ":type==="warn"?"⚠  ":"✕  ")+msg;
   el.className=`toast ${type} show`;
   clearTimeout(toastTimer);
   toastTimer=setTimeout(()=>el.classList.remove("show"),3500);

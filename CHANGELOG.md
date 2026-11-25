@@ -6,6 +6,7 @@
 
 ### Sửa
 
+- Import CSV Page List (`admin-bulk`): ô trống/cột thiếu không còn xoá dữ liệu đang có; nhiều dòng cùng 1 page được gộp (trước đây dòng trùng làm lỗi toàn bộ token mà vẫn báo thành công); báo lỗi từng dòng, kể cả khi thiếu quyền; không đổi chủ sở hữu page/token; đọc được file Excel (BOM, dấu `;`, không phải UTF-8, xuống dòng trong ô); chặn UID bị Excel làm hỏng; khớp tên đúng với dấu tiếng Việt (NFC); UID trùng ở nhiều page phải dùng page_id. Có bộ test `tests/admin-bulk-import.test.js` (24 tình huống).
 - Link "TikTok URL" / "Link video nguồn" trong trang chi tiết job FB / IG-Threads được escape và chỉ nhận http(s).
 - Trạng thái job đồng bộ theo kết quả cuối của n8n trên cả 3 nền tảng: `Error` → Lỗi, `Error Link` → Error Link (trước đây job vẫn hiện "Chờ xử lý"). Sửa dữ liệu: 1 job Facebook, 32 job Telegram.
 - Nút "🔧 n8n → Đặt lại chờ đăng" đưa trạng thái về Chờ xử lý (trước chỉ đổi n8n_status nên job lỗi vẫn kẹt, không chạy lại).
