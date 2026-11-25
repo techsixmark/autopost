@@ -743,9 +743,15 @@ function populateGroupList() {
 }
 
 // ── Export CSV (kèm page_id để re-upload cập nhật chính xác theo ID) ──
+// Excel tự đổi ô toàn chữ số dài thành số (1.19834E+15, mất chữ số cuối; ID Telegram -100… cũng
+// vậy), bỏ số 0 đầu, và chạy ô bắt đầu bằng = + - @ như công thức. Bọc các ô đó thành ="…":
+// Excel hiện đúng chữ, lưu lại vẫn đúng giá trị; trang import (admin-bulk) tự bỏ lớp bọc nếu
+// file được nhập thẳng không qua Excel. Excel chỉ cho chuỗi ≤ 255 ký tự trong công thức nên ô dài
+// hơn để nguyên (không có dữ liệu thật nào vừa dài vừa cần bọc).
 function csvCell(v) {
-  const s = v===null || v===undefined ? "" : String(v);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+  let s = v===null || v===undefined ? "" : String(v);
+  if (s.length <= 250 && (/^-?\d{12,}$/.test(s) || /^0\d+$/.test(s) || /^[=+\-@]/.test(s))) s = `="${s.replace(/"/g,'""')}"`;
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
 }
 function exportPagesCSV() {
   if (!allPages.length) return toast("Chưa có page nào để xuất","error");
@@ -763,7 +769,8 @@ function exportPagesCSV() {
   const blob = new Blob(["﻿"+rows.join("\n")], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `pages_export_${new Date().toISOString().slice(0,10)}.csv`;
+  const d = new Date(); // ngày theo giờ máy (VN), không theo UTC
+  a.download = `pages_export_${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}.csv`;
   a.click();
   toast(`Đã xuất ${toExport.length} pages ra CSV`, "success");
 }

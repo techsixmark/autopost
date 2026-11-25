@@ -20,5 +20,5 @@ Hướng dẫn cho Claude Code khi làm việc trong repo Autopost.
 - Không commit secret: `.env*` đã nằm trong `.gitignore` (repo public). Khóa `anon` của Supabase là công khai, được phép nằm trong code.
 - Trạng thái job: một nguồn duy nhất ở `shared.js` (`STATUS_LABEL`, `effectiveStatus()`); sửa ở đó thay vì từng trang.
 - Quyết định kiến trúc/hạ tầng ghi vào `docs/DECISIONS.md` (thêm dòng, không xóa dòng cũ). Thay đổi đáng chú ý ghi vào `CHANGELOG.md`.
-- Test: `node tests/admin-bulk-import.test.js` (import CSV, chạy code thật của trang trên Supabase giả). Sửa `admin-bulk.html` thì chạy lại.
+- Test: `node tests/admin-bulk-import.test.js` (import CSV) và `node tests/csv-export-roundtrip.test.js` (xuất → Excel → nhập lại), chạy code thật của trang trên Supabase giả. Sửa `admin-bulk.html` hoặc phần xuất CSV của `admin-pages.html` thì chạy lại cả hai.
 - Agent chuyên trách: `.claude/agents/` (supabase-schema, admin-ui-fix, bulk-import, deploy, qa).

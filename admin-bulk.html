@@ -560,6 +560,10 @@ function parseBool(v) {
   return undefined;
 }
 
+// Export CSV (Page List) bọc UID và ô giống công thức thành ="…" để Excel không làm hỏng;
+// nhập thẳng file đó (không qua Excel) thì bỏ lớp bọc này.
+function unwrapExcelText(s) { const m = /^="([\s\S]*)"$/.exec(s); return m ? m[1].replace(/""/g, '"') : s; }
+
 // Tách cả file thành các bản ghi: ô trong ngoặc kép được chứa dấu phân cách, "" và xuống dòng
 // (Alt+Enter trong Excel). `line` = số dòng thật trong file, để báo lỗi đúng chỗ.
 function parseCSVRecords(text, delim) {
@@ -598,7 +602,7 @@ function parseCSV(text) {
   parsedRows = [];
   for (const rec of recs.slice(1)) {
     const obj  = {};
-    headers.forEach((h,j) => obj[h] = (rec.cells[j] ?? "").normalize("NFC").trim());
+    headers.forEach((h,j) => obj[h] = unwrapExcelText((rec.cells[j] ?? "").normalize("NFC").trim()));
     const row = {
       page_id:         obj.page_id ?? obj.id ?? "",
       page_name:       obj.page_name ?? "",
@@ -623,8 +627,9 @@ function parseCSV(text) {
     if (!VALID_PLATFORMS.includes(row.platform)) row._errors.push(`Platform "${row.platform}" không hợp lệ`);
     if (row.is_active === undefined) row._errors.push(`is_active "${obj.is_active}" không hợp lệ (dùng TRUE/FALSE)`);
     // Excel tự đổi UID dài thành số khoa học (1.19834E+15) và làm mất các chữ số cuối
-    if (/^[+-]?\d+(\.\d+)?e[+-]?\d+$/i.test(row.page_uid) || /^\d+\.\d+$/.test(row.page_uid))
-      row._errors.push(`UID "${row.page_uid}" bị Excel đổi thành dạng số: xuất lại CSV từ hệ thống, không sửa cột UID bằng Excel`);
+    const uidBroken = /^[+-]?\d+(\.\d+)?e[+-]?\d+$/i.test(row.page_uid) || /^\d+\.\d+$/.test(row.page_uid);
+    if (uidBroken)
+      row._errors.push(`UID "${row.page_uid}" bị Excel đổi thành dạng số: dùng file vừa xuất từ Page List (đã chống lỗi này) hoặc định dạng cột UID là Text trước khi sửa`);
     // Khớp page đã có: ưu tiên tuyệt đối theo page_id (chính xác 1-1, lấy từ Export CSV),
     // nếu không có page_id mới fallback theo UID, rồi theo tên (UID không bắt buộc).
     if (row.page_id) {
@@ -633,7 +638,7 @@ function parseCSV(text) {
       else if (VALID_PLATFORMS.includes(row.platform) && byId.platform !== row.platform)
         row._errors.push(`Platform "${row.platform}" khác page hiện có (${byId.platform})`);
       // Excel làm tròn UID 16 chữ số (…0102 → …0100): không để nó ghi đè UID thật
-      else if (row.page_uid && byId.page_uid && row.page_uid !== byId.page_uid)
+      else if (!uidBroken && row.page_uid && byId.page_uid && row.page_uid !== byId.page_uid)
         row._errors.push(`UID "${row.page_uid}" khác UID đang có (${byId.page_uid}): có thể Excel đã làm tròn số. Muốn đổi UID thì sửa ở Page List`);
       row._existingId = byId?.id || null;
     } else {
